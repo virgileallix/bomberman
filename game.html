@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bomberman - Game</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body class="game-page">
+    <div class="game-ui">
+        <!-- Top HUD -->
+        <div class="game-hud">
+            <div class="timer">
+                <span class="timer-icon">⏱️</span>
+                <span id="gameTimer">5:00</span>
+            </div>
+
+            <div class="players-status" id="playersStatus">
+                <!-- Player status will be dynamically added -->
+            </div>
+
+            <button class="btn-menu" id="menuBtn">☰</button>
+        </div>
+
+        <!-- Game Canvas -->
+        <div class="game-canvas-container">
+            <canvas id="gameCanvas"></canvas>
+        </div>
+
+        <!-- Game Controls Info -->
+        <div class="controls-info">
+            <div class="control-item">
+                <span class="key">WASD</span>
+                <span class="action">Move</span>
+            </div>
+            <div class="control-item">
+                <span class="key">SPACE</span>
+                <span class="action">Bomb</span>
+            </div>
+            <div class="control-item">
+                <span class="key">E</span>
+                <span class="action">Emote</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Emotes Menu -->
+    <div id="emotesMenu" class="emotes-menu hidden">
+        <button class="emote-btn" data-emote="😂">😂</button>
+        <button class="emote-btn" data-emote="😎">😎</button>
+        <button class="emote-btn" data-emote="😱">😱</button>
+        <button class="emote-btn" data-emote="🔥">🔥</button>
+        <button class="emote-btn" data-emote="💪">💪</button>
+        <button class="emote-btn" data-emote="👍">👍</button>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="gameOverModal" class="modal hidden">
+        <div class="modal-content game-over">
+            <h2 id="gameOverTitle">Game Over!</h2>
+            <div class="winner-display" id="winnerDisplay"></div>
+
+            <div class="final-scores" id="finalScores">
+                <!-- Scores will be dynamically added -->
+            </div>
+
+            <div class="stats-gained" id="statsGained">
+                <!-- Stats changes will be shown -->
+            </div>
+
+            <div class="game-over-actions">
+                <button class="btn btn-secondary" id="backToLobbyBtn">Back to Lobby</button>
+                <button class="btn btn-primary" id="playAgainBtn">Play Again</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pause Menu -->
+    <div id="pauseMenu" class="modal hidden">
+        <div class="modal-content pause-menu">
+            <h2>Paused</h2>
+            <button class="btn btn-primary" id="resumeBtn">Resume</button>
+            <button class="btn btn-secondary" id="settingsBtn">Settings</button>
+            <button class="btn btn-danger" id="quitBtn">Quit to Lobby</button>
+        </div>
+    </div>
+
+    <!-- Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
+        import { getDatabase } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-database.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD7cxkTRl1OgFRVzPPf5Us0LRZSZM07u08",
+            authDomain: "bomb-16743.firebaseapp.com",
+            databaseURL: "https://bomb-16743-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "bomb-16743",
+            storageBucket: "bomb-16743.firebasestorage.app",
+            messagingSenderId: "866325131307",
+            appId: "1:866325131307:web:d4884ecf4b464fee4f3a6e",
+            measurementId: "G-B1SR1M0TEK"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+        const firestore = getFirestore(app);
+
+        window.firebaseApp = app;
+        window.database = database;
+        window.firestore = firestore;
+    </script>
+    <script type="module" src="js/game.js"></script>
+</body>
+</html>

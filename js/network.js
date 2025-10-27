@@ -1,0 +1,570 @@
+import {
+    ref,
+    set,
+    get,
+    update,
+    remove,
+    onValue,
+    onDisconnect,
+    push,
+    serverTimestamp
+} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-database.js";
+
+import {
+    doc,
+    setDoc,
+    getDoc,
+    getDocs,
+    updateDoc,
+    collection,
+    query,
+    where,
+    orderBy,
+    limit,
+    increment,
+    Timestamp
+} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+
+import { signInAnonymously, getAuth } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
+
+/**
+ * Network Manager - Handles all Firebase operations
+ */
+export class NetworkManager {
+    constructor(database, firestore) {
+        this.database = database;
+        this.firestore = firestore;
+        this.auth = getAuth();
+        this.userId = null;
+        this.username = null;
+        this.listeners = {};
+    }
+
+    /**
+     * Initialize and authenticate user
+     */
+    async initialize() {
+        try {
+            // Sign in anonymously
+            const userCredential = await signInAnonymously(this.auth);
+            this.userId = userCredential.user.uid;
+
+            // Get or create user profile
+            await this.initializeUserProfile();
+
+            // Setup presence system
+            await this.setupPresence();
+
+            return this.userId;
+        } catch (error) {
+            console.error("Network initialization error:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Initialize user profile in Firestore
+     */
+    async initializeUserProfile() {
+        const username = localStorage.getItem('bomberman_username') || `Player${Math.floor(Math.random() * 9999)}`;
+        this.username = username;
+
+        const userRef = doc(this.firestore, 'users', this.userId);
+        const userSnap = await getDoc(userRef);
+
+        if (!userSnap.exists()) {
+            // Create new user profile
+            await setDoc(userRef, {
+                username: username,
+                elo: 1000,
+                rank: 'Bronze',
+                createdAt: Timestamp.now(),
+                gamesPlayed: 0,
+                wins: 0,
+                kills: 0,
+                deaths: 0
+            });
+        } else {
+            // Update username if changed
+            const data = userSnap.data();
+            if (data.username !== username) {
+                await updateDoc(userRef, { username });
+            }
+        }
+    }
+
+    /**
+     * Setup presence system (online/offline)
+     */
+    async setupPresence() {
+        const presenceRef = ref(this.database, `presence/${this.userId}`);
+
+        // Set user as online
+        await set(presenceRef, {
+            online: true,
+            lastSeen: serverTimestamp(),
+            username: this.username
+        });
+
+        // Remove presence on disconnect
+        onDisconnect(presenceRef).remove();
+    }
+
+    // ==================== ROOM MANAGEMENT ====================
+
+    /**
+     * Create a new game room
+     */
+    async createRoom(settings = {}) {
+        const roomCode = this.generateRoomCode();
+        const roomRef = ref(this.database, `rooms/${roomCode}`);
+
+        const roomData = {
+            code: roomCode,
+            host: this.userId,
+            status: 'waiting', // waiting, playing, finished
+            settings: {
+                map: settings.map || 'classic',
+                duration: settings.duration || 300,
+                powerups: settings.powerups !== false,
+                maxPlayers: 4
+            },
+            players: {
+                [this.userId]: {
+                    id: this.userId,
+                    username: this.username,
+                    ready: false,
+                    colorIndex: 0
+                }
+            },
+            createdAt: serverTimestamp(),
+            startedAt: null
+        };
+
+        await set(roomRef, roomData);
+        return roomCode;
+    }
+
+    /**
+     * Join an existing room
+     */
+    async joinRoom(roomCode) {
+        const roomRef = ref(this.database, `rooms/${roomCode}`);
+        const snapshot = await get(roomRef);
+
+        if (!snapshot.exists()) {
+            throw new Error('Room not found');
+        }
+
+        const roomData = snapshot.val();
+
+        if (roomData.status !== 'waiting') {
+            throw new Error('Game already in progress');
+        }
+
+        const playerCount = Object.keys(roomData.players || {}).length;
+        if (playerCount >= roomData.settings.maxPlayers) {
+            throw new Error('Room is full');
+        }
+
+        // Find available color index
+        const usedColors = Object.values(roomData.players).map(p => p.colorIndex);
+        let colorIndex = 0;
+        for (let i = 0; i < 4; i++) {
+            if (!usedColors.includes(i)) {
+                colorIndex = i;
+                break;
+            }
+        }
+
+        // Add player to room
+        const playerRef = ref(this.database, `rooms/${roomCode}/players/${this.userId}`);
+        await set(playerRef, {
+            id: this.userId,
+            username: this.username,
+            ready: false,
+            colorIndex: colorIndex
+        });
+
+        return roomData;
+    }
+
+    /**
+     * Leave a room
+     */
+    async leaveRoom(roomCode) {
+        const playerRef = ref(this.database, `rooms/${roomCode}/players/${this.userId}`);
+        await remove(playerRef);
+
+        // If host left, delete room or transfer host
+        const roomRef = ref(this.database, `rooms/${roomCode}`);
+        const snapshot = await get(roomRef);
+
+        if (snapshot.exists()) {
+            const roomData = snapshot.val();
+            if (roomData.host === this.userId) {
+                const remainingPlayers = Object.keys(roomData.players || {}).filter(id => id !== this.userId);
+
+                if (remainingPlayers.length === 0) {
+                    // Delete room if empty
+                    await remove(roomRef);
+                } else {
+                    // Transfer host to another player
+                    await update(roomRef, { host: remainingPlayers[0] });
+                }
+            }
+        }
+    }
+
+    /**
+     * Toggle ready status
+     */
+    async toggleReady(roomCode) {
+        const playerRef = ref(this.database, `rooms/${roomCode}/players/${this.userId}`);
+        const snapshot = await get(playerRef);
+
+        if (snapshot.exists()) {
+            const playerData = snapshot.val();
+            await update(playerRef, { ready: !playerData.ready });
+            return !playerData.ready;
+        }
+
+        return false;
+    }
+
+    /**
+     * Update room settings (host only)
+     */
+    async updateRoomSettings(roomCode, settings) {
+        const settingsRef = ref(this.database, `rooms/${roomCode}/settings`);
+        await update(settingsRef, settings);
+    }
+
+    /**
+     * Start game (host only)
+     */
+    async startGame(roomCode) {
+        const roomRef = ref(this.database, `rooms/${roomCode}`);
+        await update(roomRef, {
+            status: 'playing',
+            startedAt: serverTimestamp()
+        });
+    }
+
+    /**
+     * Get list of public rooms
+     */
+    async getPublicRooms() {
+        const roomsRef = ref(this.database, 'rooms');
+        const snapshot = await get(roomsRef);
+
+        if (!snapshot.exists()) return [];
+
+        const rooms = [];
+        snapshot.forEach(childSnapshot => {
+            const room = childSnapshot.val();
+            if (room.status === 'waiting') {
+                rooms.push({
+                    code: room.code,
+                    host: room.players[room.host]?.username || 'Unknown',
+                    playerCount: Object.keys(room.players || {}).length,
+                    maxPlayers: room.settings.maxPlayers,
+                    map: room.settings.map
+                });
+            }
+        });
+
+        return rooms;
+    }
+
+    // ==================== GAME STATE ====================
+
+    /**
+     * Update player position
+     */
+    async updatePlayerPosition(roomCode, playerData) {
+        const playerRef = ref(this.database, `rooms/${roomCode}/gameState/players/${this.userId}`);
+        await set(playerRef, {
+            ...playerData,
+            lastUpdate: serverTimestamp()
+        });
+    }
+
+    /**
+     * Place a bomb
+     */
+    async placeBomb(roomCode, bombData) {
+        const bombRef = ref(this.database, `rooms/${roomCode}/gameState/bombs/${bombData.id}`);
+        await set(bombRef, {
+            ...bombData,
+            timestamp: serverTimestamp()
+        });
+    }
+
+    /**
+     * Trigger explosion
+     */
+    async triggerExplosion(roomCode, explosionData) {
+        const explosionRef = push(ref(this.database, `rooms/${roomCode}/gameState/explosions`));
+        await set(explosionRef, {
+            ...explosionData,
+            timestamp: serverTimestamp()
+        });
+
+        // Remove after 1 second
+        setTimeout(() => {
+            remove(explosionRef);
+        }, 1000);
+    }
+
+    /**
+     * Remove bomb
+     */
+    async removeBomb(roomCode, bombId) {
+        const bombRef = ref(this.database, `rooms/${roomCode}/gameState/bombs/${bombId}`);
+        await remove(bombRef);
+    }
+
+    /**
+     * Update grid (destroy tiles)
+     */
+    async updateGrid(roomCode, grid) {
+        const gridRef = ref(this.database, `rooms/${roomCode}/gameState/grid`);
+        await set(gridRef, grid);
+    }
+
+    /**
+     * Spawn power-up
+     */
+    async spawnPowerUp(roomCode, powerUpData) {
+        const powerUpRef = ref(this.database, `rooms/${roomCode}/gameState/powerups/${powerUpData.id}`);
+        await set(powerUpRef, powerUpData);
+    }
+
+    /**
+     * Collect power-up
+     */
+    async collectPowerUp(roomCode, powerUpId) {
+        const powerUpRef = ref(this.database, `rooms/${roomCode}/gameState/powerups/${powerUpId}`);
+        await remove(powerUpRef);
+    }
+
+    // ==================== CHAT ====================
+
+    /**
+     * Send global chat message
+     */
+    async sendGlobalChat(message) {
+        const chatRef = push(ref(this.database, 'globalChat'));
+        await set(chatRef, {
+            user: this.username,
+            userId: this.userId,
+            message: message,
+            timestamp: serverTimestamp()
+        });
+    }
+
+    /**
+     * Send room chat message
+     */
+    async sendRoomChat(roomCode, message) {
+        const chatRef = push(ref(this.database, `rooms/${roomCode}/chat`));
+        await set(chatRef, {
+            user: this.username,
+            userId: this.userId,
+            message: message,
+            timestamp: serverTimestamp()
+        });
+    }
+
+    // ==================== STATS (FIRESTORE) ====================
+
+    /**
+     * Get user profile
+     */
+    async getUserProfile(userId = this.userId) {
+        const userRef = doc(this.firestore, 'users', userId);
+        const userSnap = await getDoc(userRef);
+        return userSnap.exists() ? userSnap.data() : null;
+    }
+
+    /**
+     * Update user stats after game
+     */
+    async updateStats(winner, kills, deaths) {
+        const userRef = doc(this.firestore, 'users', this.userId);
+
+        await updateDoc(userRef, {
+            gamesPlayed: increment(1),
+            wins: winner ? increment(1) : increment(0),
+            kills: increment(kills),
+            deaths: increment(deaths),
+            elo: increment(winner ? 25 : -10)
+        });
+
+        // Update rank based on ELO
+        const userSnap = await getDoc(userRef);
+        const userData = userSnap.data();
+        const rank = this.calculateRank(userData.elo);
+
+        if (userData.rank !== rank) {
+            await updateDoc(userRef, { rank });
+        }
+
+        return userData;
+    }
+
+    /**
+     * Save match to history
+     */
+    async saveMatch(roomCode, players, winner, duration) {
+        const matchRef = doc(collection(this.firestore, 'matches'));
+        await setDoc(matchRef, {
+            roomCode: roomCode,
+            players: players.map(p => ({
+                id: p.id,
+                username: p.username,
+                kills: p.kills,
+                deaths: p.deaths
+            })),
+            winner: winner,
+            duration: duration,
+            timestamp: Timestamp.now()
+        });
+    }
+
+    /**
+     * Get leaderboard
+     */
+    async getLeaderboard(limitCount = 10) {
+        const usersRef = collection(this.firestore, 'users');
+        const q = query(usersRef, orderBy('elo', 'desc'), limit(limitCount));
+        const snapshot = await getDocs(q);
+
+        const leaderboard = [];
+        snapshot.forEach(doc => {
+            leaderboard.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+
+        return leaderboard;
+    }
+
+    /**
+     * Calculate rank from ELO
+     */
+    calculateRank(elo) {
+        if (elo >= 2000) return 'Diamond';
+        if (elo >= 1500) return 'Platinum';
+        if (elo >= 1200) return 'Gold';
+        if (elo >= 900) return 'Silver';
+        return 'Bronze';
+    }
+
+    // ==================== LISTENERS ====================
+
+    /**
+     * Listen to room changes
+     */
+    listenToRoom(roomCode, callback) {
+        const roomRef = ref(this.database, `rooms/${roomCode}`);
+        const unsubscribe = onValue(roomRef, snapshot => {
+            if (snapshot.exists()) {
+                callback(snapshot.val());
+            } else {
+                callback(null);
+            }
+        });
+
+        this.listeners[`room_${roomCode}`] = unsubscribe;
+        return unsubscribe;
+    }
+
+    /**
+     * Listen to game state
+     */
+    listenToGameState(roomCode, callback) {
+        const gameStateRef = ref(this.database, `rooms/${roomCode}/gameState`);
+        const unsubscribe = onValue(gameStateRef, snapshot => {
+            callback(snapshot.val() || {});
+        });
+
+        this.listeners[`gameState_${roomCode}`] = unsubscribe;
+        return unsubscribe;
+    }
+
+    /**
+     * Listen to chat
+     */
+    listenToChat(roomCode, callback) {
+        const chatRef = ref(this.database, roomCode ? `rooms/${roomCode}/chat` : 'globalChat');
+        const unsubscribe = onValue(chatRef, snapshot => {
+            const messages = [];
+            snapshot.forEach(childSnapshot => {
+                messages.push({
+                    id: childSnapshot.key,
+                    ...childSnapshot.val()
+                });
+            });
+            callback(messages);
+        });
+
+        this.listeners[`chat_${roomCode || 'global'}`] = unsubscribe;
+        return unsubscribe;
+    }
+
+    /**
+     * Remove all listeners
+     */
+    removeAllListeners() {
+        Object.values(this.listeners).forEach(unsubscribe => {
+            if (typeof unsubscribe === 'function') {
+                unsubscribe();
+            }
+        });
+        this.listeners = {};
+    }
+
+    // ==================== UTILITIES ====================
+
+    /**
+     * Generate random room code
+     */
+    generateRoomCode() {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let code = '';
+        for (let i = 0; i < 6; i++) {
+            code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return code;
+    }
+
+    /**
+     * Get current user ID
+     */
+    getUserId() {
+        return this.userId;
+    }
+
+    /**
+     * Get current username
+     */
+    getUsername() {
+        return this.username;
+    }
+
+    /**
+     * Update username
+     */
+    async updateUsername(newUsername) {
+        this.username = newUsername;
+        localStorage.setItem('bomberman_username', newUsername);
+
+        if (this.userId) {
+            const userRef = doc(this.firestore, 'users', this.userId);
+            await updateDoc(userRef, { username: newUsername });
+        }
+    }
+}

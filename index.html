@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bomberman Multiplayer - Lobby</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body class="lobby-page">
+    <div class="stars-bg"></div>
+
+    <div class="lobby-container">
+        <header class="game-header">
+            <h1 class="game-title">💣 BOMBERMAN</h1>
+            <p class="game-subtitle">Multiplayer Arena</p>
+        </header>
+
+        <!-- Profile Section -->
+        <div class="profile-section">
+            <div class="user-info">
+                <div class="avatar" id="userAvatar">👤</div>
+                <div class="user-details">
+                    <input type="text" id="username" placeholder="Enter your name..." maxlength="12">
+                    <div class="user-stats">
+                        <span class="rank" id="userRank">Bronze</span>
+                        <span class="elo" id="userElo">1000 ELO</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Lobby -->
+        <div class="lobby-content">
+            <div class="lobby-actions">
+                <button class="btn btn-primary" id="createRoomBtn">
+                    <span class="btn-icon">🎮</span>
+                    Create Room
+                </button>
+
+                <div class="join-room-input">
+                    <input type="text" id="roomCode" placeholder="Room code..." maxlength="6">
+                    <button class="btn btn-secondary" id="joinRoomBtn">
+                        <span class="btn-icon">🚪</span>
+                        Join
+                    </button>
+                </div>
+            </div>
+
+            <!-- Public Rooms List -->
+            <div class="rooms-list">
+                <h3 class="section-title">🌐 Public Rooms</h3>
+                <div id="roomsList" class="rooms-grid">
+                    <div class="empty-state">
+                        <p>No public rooms available</p>
+                        <p class="hint">Create one to start playing!</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Global Chat -->
+            <div class="chat-section">
+                <h3 class="section-title">💬 Global Chat</h3>
+                <div class="chat-messages" id="globalChat"></div>
+                <div class="chat-input">
+                    <input type="text" id="chatInput" placeholder="Type a message..." maxlength="100">
+                    <button class="btn btn-icon" id="sendChatBtn">📨</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leaderboard -->
+        <div class="leaderboard-section">
+            <h3 class="section-title">🏆 Top Players</h3>
+            <div id="leaderboard" class="leaderboard-list"></div>
+        </div>
+    </div>
+
+    <!-- Waiting Room Modal -->
+    <div id="waitingRoomModal" class="modal hidden">
+        <div class="modal-content waiting-room">
+            <div class="room-header">
+                <h2>Waiting Room</h2>
+                <div class="room-code-display">
+                    <span>Room Code:</span>
+                    <code id="displayRoomCode">------</code>
+                    <button class="btn-copy" id="copyCodeBtn">📋</button>
+                </div>
+            </div>
+
+            <div class="players-grid" id="playersGrid">
+                <!-- Player slots will be dynamically added -->
+            </div>
+
+            <div class="room-settings" id="roomSettings">
+                <h3>Game Settings</h3>
+                <div class="settings-grid">
+                    <label>
+                        Map
+                        <select id="mapSelect">
+                            <option value="classic">Classic</option>
+                            <option value="maze">Maze</option>
+                            <option value="arena">Arena</option>
+                        </select>
+                    </label>
+                    <label>
+                        Round Duration
+                        <select id="durationSelect">
+                            <option value="180">3 minutes</option>
+                            <option value="300" selected>5 minutes</option>
+                            <option value="480">8 minutes</option>
+                        </select>
+                    </label>
+                    <label>
+                        Power-ups
+                        <input type="checkbox" id="powerupsToggle" checked>
+                    </label>
+                </div>
+            </div>
+
+            <div class="room-chat">
+                <div class="chat-messages" id="roomChat"></div>
+                <div class="chat-input">
+                    <input type="text" id="roomChatInput" placeholder="Chat with players..." maxlength="100">
+                    <button class="btn btn-icon" id="sendRoomChatBtn">📨</button>
+                </div>
+            </div>
+
+            <div class="room-actions">
+                <button class="btn btn-secondary" id="leaveRoomBtn">Leave</button>
+                <button class="btn btn-ready" id="readyBtn">Ready</button>
+                <button class="btn btn-primary hidden" id="startGameBtn">Start Game</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-analytics.js";
+        import { getDatabase } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-database.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD7cxkTRl1OgFRVzPPf5Us0LRZSZM07u08",
+            authDomain: "bomb-16743.firebaseapp.com",
+            databaseURL: "https://bomb-16743-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "bomb-16743",
+            storageBucket: "bomb-16743.firebasestorage.app",
+            messagingSenderId: "866325131307",
+            appId: "1:866325131307:web:d4884ecf4b464fee4f3a6e",
+            measurementId: "G-B1SR1M0TEK"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const database = getDatabase(app);
+        const firestore = getFirestore(app);
+
+        // Make available globally
+        window.firebaseApp = app;
+        window.database = database;
+        window.firestore = firestore;
+    </script>
+    <script type="module" src="js/lobby.js"></script>
+</body>
+</html>
