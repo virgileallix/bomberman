@@ -954,3 +954,132 @@ input[type="checkbox"] {
 .shake {
     animation: shake 0.5s;
 }
+
+/* ==================== LOGIN MODAL ==================== */
+.login-modal {
+    max-width: 450px;
+    width: 90%;
+    background: var(--bg-card);
+    border: 3px solid var(--primary);
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: 0 0 30px var(--border-glow), inset 0 0 20px rgba(0, 240, 255, 0.1);
+}
+
+.login-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.login-header h2 {
+    color: var(--primary);
+    font-size: 24px;
+    margin-bottom: 10px;
+    text-shadow: 0 0 10px var(--primary);
+}
+
+.login-header p {
+    color: var(--text-secondary);
+    font-size: 10px;
+}
+
+.login-methods {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.btn-google {
+    background: linear-gradient(135deg, #4285f4, #34a853);
+    color: white;
+    border: none;
+    padding: 15px 20px;
+    border-radius: 8px;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.3s;
+}
+
+.btn-google:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(66, 133, 244, 0.4);
+}
+
+.divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 10px 0;
+}
+
+.divider::before,
+.divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.divider span {
+    padding: 0 10px;
+    color: var(--text-muted);
+    font-size: 9px;
+}
+
+.email-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.email-form input {
+    padding: 12px 15px;
+    background: var(--bg-hover);
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: 'Press Start 2P', cursive;
+    font-size: 9px;
+    transition: all 0.3s;
+}
+
+.email-form input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 10px var(--border-glow);
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-size: 9px;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 5px;
+    transition: color 0.3s;
+    font-family: 'Press Start 2P', cursive;
+}
+
+.btn-link:hover {
+    color: var(--secondary);
+}
+
+.error-message {
+    background: rgba(255, 0, 85, 0.1);
+    border: 2px solid var(--danger);
+    border-radius: 8px;
+    padding: 12px;
+    color: var(--danger);
+    font-size: 9px;
+    text-align: center;
+    margin-top: 15px;
+}
+
+.error-message.hidden {
+    display: none;
+}

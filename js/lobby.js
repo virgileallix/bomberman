@@ -1,15 +1,18 @@
 import { NetworkManager } from './network.js';
+import { AuthManager } from './auth.js';
 
 /**
  * Lobby Manager - Handles lobby UI and room management
  */
 class LobbyManager {
     constructor() {
+        this.auth = null;
         this.network = null;
         this.currentRoom = null;
         this.currentRoomCode = null;
         this.roomListener = null;
         this.chatListener = null;
+        this.isLoginMode = true;
 
         this.init();
     }
@@ -18,26 +21,18 @@ class LobbyManager {
         // Wait for Firebase to be loaded
         await this.waitForFirebase();
 
-        // Initialize network
-        this.network = new NetworkManager(window.database, window.firestore);
+        // Initialize auth
+        this.auth = new AuthManager(window.firestore);
+        this.setupAuthUI();
 
-        try {
-            await this.network.initialize();
-            console.log('Network initialized:', this.network.getUserId());
-
-            // Setup UI
-            this.setupUI();
-            this.loadUserProfile();
-            this.loadLeaderboard();
-            this.loadPublicRooms();
-            this.setupGlobalChat();
-
-            // Auto-save username
-            this.setupAutoSave();
-        } catch (error) {
-            console.error('Initialization error:', error);
-            this.showError('Failed to connect to server. Please refresh the page.');
-        }
+        // Listen for auth state changes
+        this.auth.initialize(async (user) => {
+            if (user) {
+                await this.onUserSignedIn();
+            } else {
+                this.showLoginModal();
+            }
+        });
     }
 
     async waitForFirebase() {
@@ -46,6 +41,143 @@ class LobbyManager {
             if (attempts++ > 50) throw new Error('Firebase not loaded');
             await new Promise(resolve => setTimeout(resolve, 100));
         }
+    }
+
+    setupAuthUI() {
+        // Google Sign-In
+        document.getElementById('googleSignInBtn').addEventListener('click', async () => {
+            try {
+                this.hideAuthError();
+                await this.auth.signInWithGoogle();
+            } catch (error) {
+                this.showAuthError(error.message);
+            }
+        });
+
+        // Email Sign-In
+        document.getElementById('emailSignInBtn').addEventListener('click', async () => {
+            try {
+                this.hideAuthError();
+                const email = document.getElementById('loginEmail').value.trim();
+                const password = document.getElementById('loginPassword').value;
+
+                if (!email || !password) {
+                    this.showAuthError('Veuillez remplir tous les champs');
+                    return;
+                }
+
+                await this.auth.signInWithEmail(email, password);
+            } catch (error) {
+                this.showAuthError(error.message);
+            }
+        });
+
+        // Email Register
+        document.getElementById('emailRegisterBtn').addEventListener('click', async () => {
+            try {
+                this.hideAuthError();
+                const username = document.getElementById('registerUsername').value.trim();
+                const email = document.getElementById('registerEmail').value.trim();
+                const password = document.getElementById('registerPassword').value;
+
+                if (!username || !email || !password) {
+                    this.showAuthError('Veuillez remplir tous les champs');
+                    return;
+                }
+
+                if (username.length < 3 || username.length > 12) {
+                    this.showAuthError('Le nom doit contenir entre 3 et 12 caractères');
+                    return;
+                }
+
+                await this.auth.createAccountWithEmail(email, password, username);
+            } catch (error) {
+                this.showAuthError(error.message);
+            }
+        });
+
+        // Guest Sign-In
+        document.getElementById('guestSignInBtn').addEventListener('click', async () => {
+            try {
+                this.hideAuthError();
+                await this.auth.signInAnonymously();
+            } catch (error) {
+                this.showAuthError(error.message);
+            }
+        });
+
+        // Toggle between login and register
+        document.getElementById('toggleAuthMode').addEventListener('click', () => {
+            this.isLoginMode = !this.isLoginMode;
+
+            const loginForm = document.getElementById('emailLoginForm');
+            const registerForm = document.getElementById('emailRegisterForm');
+            const authModeText = document.getElementById('authModeText');
+
+            if (this.isLoginMode) {
+                loginForm.classList.remove('hidden');
+                registerForm.classList.add('hidden');
+                authModeText.textContent = "Pas de compte ? S'inscrire";
+            } else {
+                loginForm.classList.add('hidden');
+                registerForm.classList.remove('hidden');
+                authModeText.textContent = 'Déjà un compte ? Se connecter';
+            }
+
+            this.hideAuthError();
+        });
+
+        // Enter key support
+        document.getElementById('loginPassword').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('emailSignInBtn').click();
+        });
+
+        document.getElementById('registerPassword').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('emailRegisterBtn').click();
+        });
+    }
+
+    async onUserSignedIn() {
+        console.log('User signed in:', this.auth.getUserId());
+
+        // Hide login modal
+        this.hideLoginModal();
+
+        // Initialize network if not already done
+        if (!this.network) {
+            this.network = new NetworkManager(window.database, window.firestore);
+            await this.network.initialize();
+            console.log('Network initialized:', this.network.getUserId());
+        }
+
+        // Setup UI
+        this.setupUI();
+        this.loadUserProfile();
+        this.loadLeaderboard();
+        this.loadPublicRooms();
+        this.setupGlobalChat();
+
+        // Auto-save username
+        this.setupAutoSave();
+    }
+
+    showLoginModal() {
+        document.getElementById('loginModal').classList.remove('hidden');
+    }
+
+    hideLoginModal() {
+        document.getElementById('loginModal').classList.add('hidden');
+    }
+
+    showAuthError(message) {
+        const errorDiv = document.getElementById('authError');
+        errorDiv.textContent = message;
+        errorDiv.classList.remove('hidden');
+    }
+
+    hideAuthError() {
+        const errorDiv = document.getElementById('authError');
+        errorDiv.classList.add('hidden');
     }
 
     setupUI() {
@@ -86,7 +218,7 @@ class LobbyManager {
 
     setupAutoSave() {
         const usernameInput = document.getElementById('username');
-        const savedUsername = localStorage.getItem('bomberman_username');
+        const savedUsername = this.auth.getUsername();
 
         if (savedUsername) {
             usernameInput.value = savedUsername;
@@ -95,20 +227,29 @@ class LobbyManager {
         usernameInput.addEventListener('change', async () => {
             const newUsername = usernameInput.value.trim();
             if (newUsername.length >= 3 && newUsername.length <= 12) {
+                await this.auth.updateUsername(newUsername);
                 await this.network.updateUsername(newUsername);
                 this.loadUserProfile();
             } else {
                 this.showError('Username must be 3-12 characters');
+                usernameInput.value = savedUsername;
             }
         });
     }
 
     async loadUserProfile() {
         try {
-            const profile = await this.network.getUserProfile();
+            const profile = await this.auth.getUserProfile();
+
             if (profile) {
                 document.getElementById('userRank').textContent = profile.rank;
                 document.getElementById('userElo').textContent = `${profile.elo} ELO`;
+
+                // Update avatar if Google photo available
+                if (profile.photoURL) {
+                    const avatar = document.getElementById('userAvatar');
+                    avatar.innerHTML = `<img src="${profile.photoURL}" alt="Avatar" style="width: 100%; height: 100%; border-radius: 50%;">`;
+                }
             }
         } catch (error) {
             console.error('Failed to load profile:', error);
@@ -118,23 +259,15 @@ class LobbyManager {
     async loadLeaderboard() {
         try {
             const leaderboard = await this.network.getLeaderboard(10);
-            const leaderboardEl = document.getElementById('leaderboard');
-            leaderboardEl.innerHTML = '';
+            const leaderboardDiv = document.getElementById('leaderboard');
 
-            leaderboard.forEach((user, index) => {
-                const item = document.createElement('div');
-                item.className = 'leaderboard-item';
-
-                const rankClass = index === 0 ? 'gold' : index === 1 ? 'silver' : index === 2 ? 'bronze' : '';
-
-                item.innerHTML = `
-                    <span class="leaderboard-rank ${rankClass}">#${index + 1}</span>
-                    <span class="leaderboard-name">${user.username}</span>
-                    <span class="leaderboard-elo">${user.elo}</span>
-                `;
-
-                leaderboardEl.appendChild(item);
-            });
+            leaderboardDiv.innerHTML = leaderboard.map((user, index) => `
+                <div class="leaderboard-item">
+                    <span class="rank">#${index + 1}</span>
+                    <span class="username">${user.username}</span>
+                    <span class="elo">${user.elo}</span>
+                </div>
+            `).join('');
         } catch (error) {
             console.error('Failed to load leaderboard:', error);
         }
@@ -144,7 +277,6 @@ class LobbyManager {
         try {
             const rooms = await this.network.getPublicRooms();
             const roomsList = document.getElementById('roomsList');
-            roomsList.innerHTML = '';
 
             if (rooms.length === 0) {
                 roomsList.innerHTML = `
@@ -153,52 +285,40 @@ class LobbyManager {
                         <p class="hint">Create one to start playing!</p>
                     </div>
                 `;
-                return;
+            } else {
+                roomsList.innerHTML = rooms.map(room => `
+                    <div class="room-card" data-code="${room.code}">
+                        <div class="room-info">
+                            <h4>${room.host}'s Room</h4>
+                            <p class="room-details">
+                                <span>👥 ${room.playerCount}/${room.maxPlayers}</span>
+                                <span>🗺️ ${room.map}</span>
+                            </p>
+                        </div>
+                        <button class="btn btn-small" onclick="lobbyManager.joinRoomByCode('${room.code}')">Join</button>
+                    </div>
+                `).join('');
             }
 
-            rooms.forEach(room => {
-                const card = document.createElement('div');
-                card.className = 'room-card';
-                card.innerHTML = `
-                    <div class="room-header">
-                        <span class="room-name">${room.code}</span>
-                        <span class="room-players">${room.playerCount}/${room.maxPlayers}</span>
-                    </div>
-                    <div class="room-host">Host: ${room.host}</div>
-                `;
-
-                card.addEventListener('click', () => {
-                    document.getElementById('roomCode').value = room.code;
-                    this.joinRoom();
-                });
-
-                roomsList.appendChild(card);
-            });
+            // Refresh every 5 seconds
+            setTimeout(() => this.loadPublicRooms(), 5000);
         } catch (error) {
             console.error('Failed to load public rooms:', error);
+            // Retry after error
+            setTimeout(() => this.loadPublicRooms(), 10000);
         }
-
-        // Refresh every 5 seconds
-        setTimeout(() => this.loadPublicRooms(), 5000);
     }
 
     setupGlobalChat() {
         this.network.listenToChat(null, (messages) => {
-            const chatEl = document.getElementById('globalChat');
-            chatEl.innerHTML = '';
-
-            // Show last 20 messages
-            messages.slice(-20).forEach(msg => {
-                const msgEl = document.createElement('div');
-                msgEl.className = 'chat-message';
-                msgEl.innerHTML = `
-                    <div class="chat-user">${msg.user}</div>
-                    <div class="chat-text">${this.escapeHtml(msg.message)}</div>
-                `;
-                chatEl.appendChild(msgEl);
-            });
-
-            chatEl.scrollTop = chatEl.scrollHeight;
+            const chatDiv = document.getElementById('globalChat');
+            chatDiv.innerHTML = messages.slice(-50).map(msg => `
+                <div class="chat-message">
+                    <span class="chat-user">${msg.user}:</span>
+                    <span class="chat-text">${this.escapeHtml(msg.message)}</span>
+                </div>
+            `).join('');
+            chatDiv.scrollTop = chatDiv.scrollHeight;
         });
     }
 
@@ -206,14 +326,13 @@ class LobbyManager {
         const input = document.getElementById('chatInput');
         const message = input.value.trim();
 
-        if (message.length === 0) return;
-
-        try {
-            await this.network.sendGlobalChat(message);
-            input.value = '';
-        } catch (error) {
-            console.error('Failed to send message:', error);
-            this.showError('Failed to send message');
+        if (message) {
+            try {
+                await this.network.sendGlobalChat(message);
+                input.value = '';
+            } catch (error) {
+                this.showError('Failed to send message');
+            }
         }
     }
 
@@ -221,171 +340,29 @@ class LobbyManager {
         try {
             const roomCode = await this.network.createRoom();
             this.currentRoomCode = roomCode;
-            await this.openWaitingRoom(roomCode);
+            this.showWaitingRoom(roomCode);
+            this.listenToRoom(roomCode);
         } catch (error) {
-            console.error('Failed to create room:', error);
             this.showError('Failed to create room');
         }
     }
 
     async joinRoom() {
         const roomCode = document.getElementById('roomCode').value.trim().toUpperCase();
-
-        if (roomCode.length !== 6) {
-            this.showError('Room code must be 6 characters');
-            return;
+        if (roomCode) {
+            await this.joinRoomByCode(roomCode);
         }
+    }
 
+    async joinRoomByCode(roomCode) {
         try {
             await this.network.joinRoom(roomCode);
             this.currentRoomCode = roomCode;
-            await this.openWaitingRoom(roomCode);
+            this.showWaitingRoom(roomCode);
+            this.listenToRoom(roomCode);
+            document.getElementById('roomCode').value = '';
         } catch (error) {
-            console.error('Failed to join room:', error);
-            this.showError(error.message || 'Failed to join room');
-        }
-    }
-
-    async openWaitingRoom(roomCode) {
-        // Show modal
-        document.getElementById('waitingRoomModal').classList.remove('hidden');
-        document.getElementById('displayRoomCode').textContent = roomCode;
-
-        // Listen to room updates
-        this.roomListener = this.network.listenToRoom(roomCode, (room) => {
-            if (!room) {
-                // Room was deleted
-                this.showError('Room was closed');
-                this.closeWaitingRoom();
-                return;
-            }
-
-            this.currentRoom = room;
-            this.updateWaitingRoomUI(room);
-
-            // Start game if status changed to playing
-            if (room.status === 'playing') {
-                window.location.href = `game.html?room=${roomCode}`;
-            }
-        });
-
-        // Setup room chat
-        this.network.listenToChat(roomCode, (messages) => {
-            const chatEl = document.getElementById('roomChat');
-            chatEl.innerHTML = '';
-
-            messages.slice(-20).forEach(msg => {
-                const msgEl = document.createElement('div');
-                msgEl.className = 'chat-message';
-                msgEl.innerHTML = `
-                    <div class="chat-user">${msg.user}</div>
-                    <div class="chat-text">${this.escapeHtml(msg.message)}</div>
-                `;
-                chatEl.appendChild(msgEl);
-            });
-
-            chatEl.scrollTop = chatEl.scrollHeight;
-        });
-    }
-
-    updateWaitingRoomUI(room) {
-        const playersGrid = document.getElementById('playersGrid');
-        playersGrid.innerHTML = '';
-
-        const isHost = room.host === this.network.getUserId();
-        const players = Object.values(room.players || {});
-
-        // Show player slots (4 max)
-        for (let i = 0; i < 4; i++) {
-            const player = players[i];
-            const slot = document.createElement('div');
-            slot.className = 'player-slot';
-
-            if (player) {
-                slot.classList.add('active');
-                if (player.ready) slot.classList.add('ready');
-
-                const color = this.getPlayerColor(player.colorIndex);
-                slot.innerHTML = `
-                    <div class="player-avatar" style="background: ${color};">
-                        ${player.username.charAt(0).toUpperCase()}
-                    </div>
-                    <div class="player-name">${player.username}</div>
-                    <div class="player-status ${player.ready ? 'ready' : 'waiting'}">
-                        ${player.ready ? 'Ready' : 'Not Ready'}
-                    </div>
-                `;
-            } else {
-                slot.innerHTML = `
-                    <div class="player-avatar" style="background: #333;">?</div>
-                    <div class="player-name">Waiting...</div>
-                `;
-            }
-
-            playersGrid.appendChild(slot);
-        }
-
-        // Update settings UI
-        if (isHost) {
-            document.getElementById('roomSettings').style.display = 'block';
-            document.getElementById('startGameBtn').classList.remove('hidden');
-            document.getElementById('readyBtn').classList.add('hidden');
-
-            // Enable start if at least 2 players and all ready
-            const allReady = players.every(p => p.ready);
-            document.getElementById('startGameBtn').disabled = players.length < 2 || !allReady;
-        } else {
-            document.getElementById('roomSettings').style.display = 'none';
-            document.getElementById('startGameBtn').classList.add('hidden');
-            document.getElementById('readyBtn').classList.remove('hidden');
-
-            // Update ready button
-            const currentPlayer = players.find(p => p.id === this.network.getUserId());
-            if (currentPlayer) {
-                document.getElementById('readyBtn').textContent = currentPlayer.ready ? 'Not Ready' : 'Ready';
-                document.getElementById('readyBtn').className = currentPlayer.ready ? 'btn btn-secondary' : 'btn btn-ready';
-            }
-        }
-
-        // Update settings values
-        document.getElementById('mapSelect').value = room.settings.map;
-        document.getElementById('durationSelect').value = room.settings.duration;
-        document.getElementById('powerupsToggle').checked = room.settings.powerups;
-    }
-
-    async toggleReady() {
-        try {
-            await this.network.toggleReady(this.currentRoomCode);
-        } catch (error) {
-            console.error('Failed to toggle ready:', error);
-        }
-    }
-
-    async updateSettings() {
-        if (!this.currentRoom || this.currentRoom.host !== this.network.getUserId()) return;
-
-        const settings = {
-            map: document.getElementById('mapSelect').value,
-            duration: parseInt(document.getElementById('durationSelect').value),
-            powerups: document.getElementById('powerupsToggle').checked
-        };
-
-        try {
-            await this.network.updateRoomSettings(this.currentRoomCode, settings);
-        } catch (error) {
-            console.error('Failed to update settings:', error);
-        }
-    }
-
-    async startGame() {
-        if (!this.currentRoom || this.currentRoom.host !== this.network.getUserId()) return;
-
-        try {
-            await this.network.startGame(this.currentRoomCode);
-            // Room listener will detect status change and redirect
-        } catch (error) {
-            console.error('Failed to start game:', error);
-            this.showError('Failed to start game');
+            this.showError(error.message);
         }
     }
 
@@ -393,56 +370,195 @@ class LobbyManager {
         if (this.currentRoomCode) {
             try {
                 await this.network.leaveRoom(this.currentRoomCode);
+                this.hideWaitingRoom();
+                this.currentRoomCode = null;
+                this.currentRoom = null;
+
+                // Remove listeners
+                if (this.roomListener) this.roomListener();
+                if (this.chatListener) this.chatListener();
             } catch (error) {
-                console.error('Failed to leave room:', error);
+                console.error('Leave room error:', error);
             }
         }
-
-        this.closeWaitingRoom();
     }
 
-    closeWaitingRoom() {
-        document.getElementById('waitingRoomModal').classList.add('hidden');
-        this.currentRoomCode = null;
-        this.currentRoom = null;
+    async toggleReady() {
+        if (this.currentRoomCode) {
+            try {
+                const ready = await this.network.toggleReady(this.currentRoomCode);
+                const btn = document.getElementById('readyBtn');
+                btn.textContent = ready ? 'Not Ready' : 'Ready';
+                btn.classList.toggle('ready', ready);
+            } catch (error) {
+                this.showError('Failed to toggle ready');
+            }
+        }
+    }
 
-        if (this.roomListener) {
-            this.roomListener();
-            this.roomListener = null;
+    async startGame() {
+        if (this.currentRoomCode && this.currentRoom) {
+            // Check if all players are ready
+            const players = Object.values(this.currentRoom.players);
+            const allReady = players.every(p => p.ready);
+
+            if (!allReady) {
+                this.showError('All players must be ready');
+                return;
+            }
+
+            try {
+                await this.network.startGame(this.currentRoomCode);
+                // Redirect to game
+                window.location.href = `game.html?room=${this.currentRoomCode}`;
+            } catch (error) {
+                this.showError('Failed to start game');
+            }
+        }
+    }
+
+    async updateSettings() {
+        if (this.currentRoomCode && this.currentRoom?.host === this.network.getUserId()) {
+            const settings = {
+                map: document.getElementById('mapSelect').value,
+                duration: parseInt(document.getElementById('durationSelect').value),
+                powerups: document.getElementById('powerupsToggle').checked
+            };
+
+            try {
+                await this.network.updateRoomSettings(this.currentRoomCode, settings);
+            } catch (error) {
+                console.error('Failed to update settings:', error);
+            }
+        }
+    }
+
+    listenToRoom(roomCode) {
+        this.roomListener = this.network.listenToRoom(roomCode, (room) => {
+            if (!room) {
+                this.showError('Room closed');
+                this.hideWaitingRoom();
+                return;
+            }
+
+            this.currentRoom = room;
+            this.updateWaitingRoom(room);
+
+            // Check if game started
+            if (room.status === 'playing') {
+                window.location.href = `game.html?room=${roomCode}`;
+            }
+        });
+
+        // Setup room chat
+        this.chatListener = this.network.listenToChat(roomCode, (messages) => {
+            const chatDiv = document.getElementById('roomChat');
+            chatDiv.innerHTML = messages.map(msg => `
+                <div class="chat-message">
+                    <span class="chat-user">${msg.user}:</span>
+                    <span class="chat-text">${this.escapeHtml(msg.message)}</span>
+                </div>
+            `).join('');
+            chatDiv.scrollTop = chatDiv.scrollHeight;
+        });
+    }
+
+    showWaitingRoom(roomCode) {
+        document.getElementById('displayRoomCode').textContent = roomCode;
+        document.getElementById('waitingRoomModal').classList.remove('hidden');
+    }
+
+    hideWaitingRoom() {
+        document.getElementById('waitingRoomModal').classList.add('hidden');
+    }
+
+    updateWaitingRoom(room) {
+        const isHost = room.host === this.network.getUserId();
+        const playersGrid = document.getElementById('playersGrid');
+
+        // Update players
+        const playerSlots = Array(4).fill(null);
+        Object.values(room.players).forEach(player => {
+            playerSlots[player.colorIndex] = player;
+        });
+
+        playersGrid.innerHTML = playerSlots.map((player, index) => {
+            if (player) {
+                return `
+                    <div class="player-slot filled color-${index}">
+                        <div class="player-avatar">P${index + 1}</div>
+                        <div class="player-name">${player.username}</div>
+                        <div class="player-status ${player.ready ? 'ready' : 'not-ready'}">
+                            ${player.ready ? '✓ Ready' : '⏳ Waiting'}
+                        </div>
+                        ${player.id === room.host ? '<div class="host-badge">👑 Host</div>' : ''}
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="player-slot empty">
+                        <div class="empty-text">Waiting for player...</div>
+                    </div>
+                `;
+            }
+        }).join('');
+
+        // Update settings UI
+        const settingsDiv = document.getElementById('roomSettings');
+        if (isHost) {
+            settingsDiv.classList.remove('hidden');
+            document.getElementById('mapSelect').value = room.settings.map;
+            document.getElementById('durationSelect').value = room.settings.duration;
+            document.getElementById('powerupsToggle').checked = room.settings.powerups;
+        } else {
+            settingsDiv.classList.add('hidden');
         }
 
-        this.loadPublicRooms();
+        // Update start button
+        const startBtn = document.getElementById('startGameBtn');
+        const readyBtn = document.getElementById('readyBtn');
+
+        if (isHost) {
+            startBtn.classList.remove('hidden');
+            readyBtn.classList.add('hidden');
+        } else {
+            startBtn.classList.add('hidden');
+            readyBtn.classList.remove('hidden');
+
+            const myPlayer = room.players[this.network.getUserId()];
+            if (myPlayer) {
+                readyBtn.textContent = myPlayer.ready ? 'Not Ready' : 'Ready';
+                readyBtn.classList.toggle('ready', myPlayer.ready);
+            }
+        }
     }
 
     async sendRoomChat() {
         const input = document.getElementById('roomChatInput');
         const message = input.value.trim();
 
-        if (message.length === 0 || !this.currentRoomCode) return;
-
-        try {
-            await this.network.sendRoomChat(this.currentRoomCode, message);
-            input.value = '';
-        } catch (error) {
-            console.error('Failed to send message:', error);
+        if (message && this.currentRoomCode) {
+            try {
+                await this.network.sendRoomChat(this.currentRoomCode, message);
+                input.value = '';
+            } catch (error) {
+                this.showError('Failed to send message');
+            }
         }
     }
 
     copyRoomCode() {
-        const code = document.getElementById('displayRoomCode').textContent;
-        navigator.clipboard.writeText(code).then(() => {
-            const btn = document.getElementById('copyCodeBtn');
-            const originalText = btn.textContent;
-            btn.textContent = '✓';
-            setTimeout(() => {
-                btn.textContent = originalText;
-            }, 2000);
-        });
+        const roomCode = document.getElementById('displayRoomCode').textContent;
+        navigator.clipboard.writeText(roomCode);
+
+        const btn = document.getElementById('copyCodeBtn');
+        const originalText = btn.textContent;
+        btn.textContent = '✓';
+        setTimeout(() => btn.textContent = originalText, 2000);
     }
 
-    getPlayerColor(index) {
-        const colors = ['#00f0ff', '#ff00ff', '#ffff00', '#00ff88'];
-        return colors[index % colors.length];
+    showError(message) {
+        alert(message);
     }
 
     escapeHtml(text) {
@@ -450,18 +566,8 @@ class LobbyManager {
         div.textContent = text;
         return div.innerHTML;
     }
-
-    showError(message) {
-        // Simple error display (could be improved with a modal)
-        alert(message);
-    }
 }
 
-// Initialize when DOM is loaded
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        new LobbyManager();
-    });
-} else {
-    new LobbyManager();
-}
+// Initialize
+const lobbyManager = new LobbyManager();
+window.lobbyManager = lobbyManager;
