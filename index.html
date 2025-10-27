@@ -82,52 +82,71 @@
     <div id="loginModal" class="modal">
         <div class="modal-content login-modal">
             <div class="login-header">
-                <h2>💣 BOMBERMAN</h2>
-                <p>Connectez-vous pour jouer</p>
+                <div class="logo-container">
+                    <span class="logo-icon">💣</span>
+                    <h2>BOMBERMAN</h2>
+                </div>
+                <p class="subtitle">Préparez-vous au combat !</p>
             </div>
 
-            <div class="login-methods">
-                <button class="btn btn-google" id="googleSignInBtn">
-                    <span class="btn-icon">🔐</span>
-                    Continuer avec Google
-                </button>
+            <div class="login-body">
+                <!-- Quick Login Section -->
+                <div class="quick-login-section">
+                    <button class="btn-auth btn-google" id="googleSignInBtn">
+                        <span class="auth-icon">🔐</span>
+                        <span class="auth-text">Continuer avec Google</span>
+                    </button>
 
-                <div class="divider">
-                    <span>OU</span>
-                </div>
-
-                <div id="emailLoginForm" class="email-form">
-                    <input type="email" id="loginEmail" placeholder="Email" autocomplete="email">
-                    <input type="password" id="loginPassword" placeholder="Mot de passe" autocomplete="current-password">
-                    <button class="btn btn-primary" id="emailSignInBtn">
-                        Se connecter
+                    <button class="btn-auth btn-guest" id="guestSignInBtn">
+                        <span class="auth-icon">👤</span>
+                        <span class="auth-text">Jouer en invité</span>
                     </button>
                 </div>
 
-                <div id="emailRegisterForm" class="email-form hidden">
-                    <input type="text" id="registerUsername" placeholder="Nom d'utilisateur" maxlength="12">
-                    <input type="email" id="registerEmail" placeholder="Email" autocomplete="email">
-                    <input type="password" id="registerPassword" placeholder="Mot de passe (min 6 caractères)" autocomplete="new-password">
-                    <button class="btn btn-primary" id="emailRegisterBtn">
-                        Créer un compte
-                    </button>
+                <div class="divider-horizontal">
+                    <span class="divider-text">OU</span>
                 </div>
 
-                <button class="btn-link" id="toggleAuthMode">
-                    <span id="authModeText">Pas de compte ? S'inscrire</span>
-                </button>
+                <!-- Email Login/Register Section -->
+                <div class="email-auth-section">
+                    <div id="emailLoginForm" class="auth-form">
+                        <div class="form-group">
+                            <input type="email" id="loginEmail" placeholder="Votre email" autocomplete="email" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <input type="password" id="loginPassword" placeholder="Mot de passe" autocomplete="current-password" class="form-input">
+                        </div>
+                        <button class="btn-submit" id="emailSignInBtn">
+                            <span>Se connecter</span>
+                            <span class="btn-arrow">→</span>
+                        </button>
+                    </div>
 
-                <div class="divider">
-                    <span>OU</span>
+                    <div id="emailRegisterForm" class="auth-form hidden">
+                        <div class="form-group">
+                            <input type="text" id="registerUsername" placeholder="Nom d'utilisateur" maxlength="12" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <input type="email" id="registerEmail" placeholder="Votre email" autocomplete="email" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <input type="password" id="registerPassword" placeholder="Mot de passe (min. 6 caractères)" autocomplete="new-password" class="form-input">
+                        </div>
+                        <button class="btn-submit" id="emailRegisterBtn">
+                            <span>Créer mon compte</span>
+                            <span class="btn-arrow">→</span>
+                        </button>
+                    </div>
+
+                    <div class="toggle-auth">
+                        <button class="toggle-link" id="toggleAuthMode">
+                            <span id="authModeText">Pas encore de compte ? Inscrivez-vous</span>
+                        </button>
+                    </div>
                 </div>
 
-                <button class="btn btn-secondary" id="guestSignInBtn">
-                    <span class="btn-icon">👤</span>
-                    Continuer en tant qu'invité
-                </button>
+                <div id="authError" class="auth-error hidden"></div>
             </div>
-
-            <div id="authError" class="error-message hidden"></div>
         </div>
     </div>
 

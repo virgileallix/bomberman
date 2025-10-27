@@ -117,11 +117,11 @@ class LobbyManager {
             if (this.isLoginMode) {
                 loginForm.classList.remove('hidden');
                 registerForm.classList.add('hidden');
-                authModeText.textContent = "Pas de compte ? S'inscrire";
+                authModeText.textContent = "Pas encore de compte ? Inscrivez-vous";
             } else {
                 loginForm.classList.add('hidden');
                 registerForm.classList.remove('hidden');
-                authModeText.textContent = 'Déjà un compte ? Se connecter';
+                authModeText.textContent = 'Vous avez un compte ? Connectez-vous';
             }
 
             this.hideAuthError();
@@ -171,13 +171,14 @@ class LobbyManager {
 
     showAuthError(message) {
         const errorDiv = document.getElementById('authError');
-        errorDiv.textContent = message;
+        errorDiv.textContent = '⚠️ ' + message;
         errorDiv.classList.remove('hidden');
     }
 
     hideAuthError() {
         const errorDiv = document.getElementById('authError');
         errorDiv.classList.add('hidden');
+        errorDiv.textContent = '';
     }
 
     setupUI() {
