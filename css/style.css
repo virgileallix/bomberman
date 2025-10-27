@@ -511,7 +511,7 @@ input[type="checkbox"] {
     align-items: center;
     justify-content: center;
     gap: 15px;
-    margin-bottom: 30px;
+    margin-bottom: 10px;
 }
 
 .room-code-display code {
@@ -522,6 +522,30 @@ input[type="checkbox"] {
     border-radius: 8px;
     color: var(--primary);
     letter-spacing: 4px;
+}
+
+.room-share-hint {
+    text-align: center;
+    font-size: 9px;
+    color: var(--text-secondary);
+    margin: 10px 0 20px;
+    opacity: 0.8;
+}
+
+.btn-copy {
+    font-size: 18px;
+    padding: 8px 12px;
+    background: var(--primary);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    filter: drop-shadow(0 2px 4px rgba(0, 240, 255, 0.3));
+}
+
+.btn-copy:hover {
+    transform: scale(1.1);
+    filter: drop-shadow(0 4px 8px rgba(0, 240, 255, 0.5));
 }
 
 /* Players Grid */

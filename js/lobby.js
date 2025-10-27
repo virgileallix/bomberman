@@ -159,6 +159,40 @@ class LobbyManager {
 
         // Auto-save username
         this.setupAutoSave();
+
+        // Check for room code in URL
+        this.checkURLForRoomCode();
+    }
+
+    /**
+     * Check URL for room code and auto-join if present
+     */
+    checkURLForRoomCode() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomCodeFromQuery = urlParams.get('room');
+
+        // Check both query parameter (?room=CODE) and path (bomberman/CODE)
+        const pathParts = window.location.pathname.split('/').filter(part => part);
+        const lastPathPart = pathParts[pathParts.length - 1];
+
+        // Room code is 6 alphanumeric characters
+        const roomCodePattern = /^[A-Z0-9]{6}$/;
+
+        let roomCode = null;
+
+        if (roomCodeFromQuery && roomCodePattern.test(roomCodeFromQuery.toUpperCase())) {
+            roomCode = roomCodeFromQuery.toUpperCase();
+        } else if (lastPathPart && roomCodePattern.test(lastPathPart.toUpperCase())) {
+            roomCode = lastPathPart.toUpperCase();
+        }
+
+        if (roomCode) {
+            console.log('Auto-joining room from URL:', roomCode);
+            // Small delay to ensure UI is ready
+            setTimeout(() => {
+                this.joinRoomByCode(roomCode);
+            }, 500);
+        }
     }
 
     showLoginModal() {
@@ -361,7 +395,18 @@ class LobbyManager {
             this.currentRoomCode = roomCode;
             this.showWaitingRoom(roomCode);
             this.listenToRoom(roomCode);
-            document.getElementById('roomCode').value = '';
+
+            // Clear input field if it exists
+            const roomCodeInput = document.getElementById('roomCode');
+            if (roomCodeInput) {
+                roomCodeInput.value = '';
+            }
+
+            // Clean URL after joining (remove room code from URL)
+            if (window.history && window.history.replaceState) {
+                const cleanUrl = window.location.origin + window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
+            }
         } catch (error) {
             this.showError(error.message);
         }
@@ -550,12 +595,22 @@ class LobbyManager {
 
     copyRoomCode() {
         const roomCode = document.getElementById('displayRoomCode').textContent;
-        navigator.clipboard.writeText(roomCode);
+
+        // Create shareable URL
+        const baseUrl = window.location.origin + window.location.pathname.replace(/\/$/, '');
+        const shareableUrl = `${baseUrl}?room=${roomCode}`;
+
+        navigator.clipboard.writeText(shareableUrl);
 
         const btn = document.getElementById('copyCodeBtn');
         const originalText = btn.textContent;
         btn.textContent = '✓';
-        setTimeout(() => btn.textContent = originalText, 2000);
+        btn.title = 'Lien copié !';
+
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.title = 'Copier le lien de la room';
+        }, 2000);
     }
 
     showError(message) {
