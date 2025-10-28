@@ -248,6 +248,7 @@ export class Player {
         this.bombRange = 2;
         this.speed = 2;
         this.canKickBombs = false;
+        this.lastUpdate = Date.now();
     }
 
     /**

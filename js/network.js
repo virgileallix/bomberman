@@ -471,6 +471,20 @@ export class NetworkManager {
     }
 
     /**
+     * Write initial game state when a match starts (host only)
+     */
+    async initializeGameState(roomCode, playersState) {
+        if (!roomCode) return;
+        const gameStateRef = ref(this.database, `rooms/${roomCode}/gameState`);
+        await set(gameStateRef, {
+            players: playersState,
+            bombs: {},
+            powerups: {},
+            explosions: {}
+        });
+    }
+
+    /**
      * Spawn power-up
      */
     async spawnPowerUp(roomCode, powerUpData) {

@@ -305,6 +305,11 @@ class GameManager {
                     player.targetY = stateData.y ?? player.targetY;
                 }
 
+                player.reset(startGridX, startGridY);
+                player.alive = true;
+                player.kills = 0;
+                player.deaths = 0;
+
                 this.players.set(player.id, player);
 
                 if (player.id === this.localPlayerId) {
@@ -336,6 +341,15 @@ class GameManager {
 
             // Update HUD
             this.updatePlayersHUD();
+
+            if (isHost) {
+                const serializedPlayers = {};
+                this.players.forEach((player, playerId) => {
+                    serializedPlayers[playerId] = player.serialize();
+                });
+
+                await this.network.initializeGameState(this.roomCode, serializedPlayers);
+            }
         } finally {
             this.isInitializingGame = false;
         }
