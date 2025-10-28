@@ -549,90 +549,6 @@ class LobbyManager {
     showWaitingRoom(roomCode) {
         document.getElementById('displayRoomCode').textContent = roomCode;
         document.getElementById('waitingRoomModal').classList.remove('hidden');
-
-        // Setup skin selectors
-        this.setupSkinSelectors();
-    }
-
-    /**
-     * Setup skin selector UI
-     */
-    setupSkinSelectors() {
-        // Character skins
-        const characterSelector = document.getElementById('characterSkinSelector');
-        const characterPreview = document.getElementById('characterPreview');
-
-        characterSelector.innerHTML = Object.values(CHARACTER_SKINS).map(skin => `
-            <div class="skin-option ${skin.id === this.skinManager.selectedCharacterSkin ? 'selected' : ''}"
-                 data-skin-id="${skin.id}"
-                 data-skin-type="character"
-                 title="${skin.name}: ${skin.description}">
-                ${skin.emoji}
-            </div>
-        `).join('');
-
-        // Bomb skins
-        const bombSelector = document.getElementById('bombSkinSelector');
-        const bombPreview = document.getElementById('bombPreview');
-
-        bombSelector.innerHTML = Object.values(BOMB_SKINS).map(skin => `
-            <div class="skin-option ${skin.id === this.skinManager.selectedBombSkin ? 'selected' : ''}"
-                 data-skin-id="${skin.id}"
-                 data-skin-type="bomb"
-                 title="${skin.name}: ${skin.description}">
-                ${skin.emoji}
-            </div>
-        `).join('');
-
-        // Update previews
-        characterPreview.textContent = CHARACTER_SKINS[this.skinManager.selectedCharacterSkin].emoji;
-        bombPreview.textContent = BOMB_SKINS[this.skinManager.selectedBombSkin].emoji;
-
-        // Add event listeners
-        document.querySelectorAll('.skin-option').forEach(option => {
-            option.addEventListener('click', (e) => {
-                const skinId = e.currentTarget.dataset.skinId;
-                const skinType = e.currentTarget.dataset.skinType;
-
-                if (skinType === 'character') {
-                    this.skinManager.setCharacterSkin(skinId);
-                    characterPreview.textContent = CHARACTER_SKINS[skinId].emoji;
-
-                    // Update selection UI
-                    characterSelector.querySelectorAll('.skin-option').forEach(opt => {
-                        opt.classList.remove('selected');
-                    });
-                    e.currentTarget.classList.add('selected');
-                } else if (skinType === 'bomb') {
-                    this.skinManager.setBombSkin(skinId);
-                    bombPreview.textContent = BOMB_SKINS[skinId].emoji;
-
-                    // Update selection UI
-                    bombSelector.querySelectorAll('.skin-option').forEach(opt => {
-                        opt.classList.remove('selected');
-                    });
-                    e.currentTarget.classList.add('selected');
-                }
-
-                // TODO: Sync with network
-                this.syncSkinsToNetwork();
-            });
-        });
-    }
-
-    /**
-     * Sync selected skins to network/room
-     */
-    async syncSkinsToNetwork() {
-        if (this.currentRoomCode && this.network) {
-            try {
-                const skins = this.skinManager.getSelectedSkins();
-                await this.network.updatePlayerSkins(this.currentRoomCode, skins);
-                console.log('Skins synced:', skins);
-            } catch (error) {
-                console.error('Failed to sync skins:', error);
-            }
-        }
     }
 
     hideWaitingRoom() {
@@ -766,6 +682,8 @@ class LobbyManager {
      * Initialize skin editors
      */
     initializeSkinEditors() {
+        console.log('Initializing skin editors...');
+
         // Character editor
         this.characterEditor = new SkinEditor(
             'characterCanvas',
@@ -780,11 +698,17 @@ class LobbyManager {
             'bombColorPicker'
         );
 
+        console.log('Editors created, setting up UI...');
+
         // Setup UI event listeners
         this.setupSkinEditorUI();
 
+        console.log('Loading premade skins...');
+
         // Load premade skins
         this.loadPremadeSkins();
+
+        console.log('Skin editor initialization complete!');
     }
 
     /**
@@ -900,15 +824,24 @@ class LobbyManager {
      * Load premade skins
      */
     loadPremadeSkins() {
+        console.log('Loading premade skins...');
+
         // Character premade skins
         const characterSkins = PremadeSkins.generateCharacterSkins();
-        const characterGrid = document.getElementById('characterPremadeGrid');
+        console.log('Generated', characterSkins.length, 'character skins');
 
-        characterGrid.innerHTML = characterSkins.map((skin, index) => {
+        const characterGrid = document.getElementById('characterPremadeGrid');
+        if (!characterGrid) {
+            console.error('Character premade grid not found!');
+            return;
+        }
+
+        characterGrid.innerHTML = ''; // Clear first
+
+        characterSkins.forEach((skin, index) => {
             const wrapper = document.createElement('div');
             wrapper.className = 'premade-skin';
             wrapper.title = skin.name;
-            wrapper.dataset.index = index;
 
             const canvas = document.createElement('canvas');
             canvas.width = 32;
@@ -922,25 +855,18 @@ class LobbyManager {
                 this.characterEditor.loadImage(skin.canvas.toDataURL());
             });
 
-            return wrapper;
-        }).map(w => w.outerHTML).join('');
-
-        // Re-attach event listeners
-        characterGrid.querySelectorAll('.premade-skin').forEach((skin, index) => {
-            skin.addEventListener('click', () => {
-                this.characterEditor.loadImage(characterSkins[index].canvas.toDataURL());
-            });
+            characterGrid.appendChild(wrapper);
         });
 
         // Bomb premade skins
         const bombSkins = PremadeSkins.generateBombSkins();
         const bombGrid = document.getElementById('bombPremadeGrid');
+        bombGrid.innerHTML = ''; // Clear first
 
-        bombGrid.innerHTML = bombSkins.map((skin, index) => {
+        bombSkins.forEach((skin, index) => {
             const wrapper = document.createElement('div');
             wrapper.className = 'premade-skin';
             wrapper.title = skin.name;
-            wrapper.dataset.index = index;
 
             const canvas = document.createElement('canvas');
             canvas.width = 32;
@@ -950,14 +876,11 @@ class LobbyManager {
 
             wrapper.appendChild(canvas);
 
-            return wrapper;
-        }).map(w => w.outerHTML).join('');
-
-        // Re-attach event listeners
-        bombGrid.querySelectorAll('.premade-skin').forEach((skin, index) => {
-            skin.addEventListener('click', () => {
+            wrapper.addEventListener('click', () => {
                 this.bombEditor.loadImage(bombSkins[index].canvas.toDataURL());
             });
+
+            bombGrid.appendChild(wrapper);
         });
     }
 
