@@ -378,7 +378,7 @@ export class PowerUp {
      */
     static randomType() {
         const types = ['speed', 'bomb', 'range', 'kick', 'invincible'];
-        const weights = [28, 28, 28, 10, 6];
+        const weights = [32, 25, 18, 15, 10];
 
         const total = weights.reduce((sum, w) => sum + w, 0);
         let random = Math.random() * total;

@@ -437,6 +437,40 @@ export class NetworkManager {
     }
 
     /**
+     * Reset room after a game finishes
+     */
+    async resetGame(roomCode) {
+        if (!roomCode) return;
+
+        const roomRef = ref(this.database, `rooms/${roomCode}`);
+        await update(roomRef, {
+            status: 'waiting',
+            startedAt: null,
+            finishedAt: null
+        });
+
+        const gameStateRef = ref(this.database, `rooms/${roomCode}/gameState`);
+        await remove(gameStateRef);
+
+        const playersRef = ref(this.database, `rooms/${roomCode}/players`);
+        const snapshot = await get(playersRef);
+        if (snapshot.exists()) {
+            const updates = [];
+            snapshot.forEach(child => {
+                const playerRef = ref(this.database, `rooms/${roomCode}/players/${child.key}`);
+                updates.push(update(playerRef, {
+                    ready: false,
+                    disconnected: false
+                }));
+            });
+
+            if (updates.length) {
+                await Promise.all(updates);
+            }
+        }
+    }
+
+    /**
      * Spawn power-up
      */
     async spawnPowerUp(roomCode, powerUpData) {

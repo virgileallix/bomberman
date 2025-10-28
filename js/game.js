@@ -19,6 +19,10 @@ class GameManager {
         this.explosions = [];
         this.powerups = new Map();
         this.processedExplosionIds = new Set();
+        this.processedExplosionOrder = [];
+        this.roomHostId = null;
+        this.baseMoveDelay = 110;
+        this.minMoveDelay = 50;
 
         // Local player
         this.localPlayerId = null;
@@ -36,7 +40,7 @@ class GameManager {
         // Input
         this.keys = {};
         this.lastMoveTime = 0;
-        this.moveDelay = 100; // ms between moves (reduced for smoother movement)
+        this.moveDelay = this.baseMoveDelay; // ms between moves
 
         // Game loop
         this.lastFrameTime = 0;
@@ -199,6 +203,7 @@ class GameManager {
 
         try {
             const isHost = room.host === this.localPlayerId;
+            this.roomHostId = room.host;
             const settings = (room.settings && typeof room.settings === 'object') ? room.settings : {};
             const roomPlayers = (room.players && typeof room.players === 'object') ? room.players : null;
             const gameStatePlayers = (room.gameState && room.gameState.players && typeof room.gameState.players === 'object')
@@ -271,6 +276,7 @@ class GameManager {
             this.explosions = [];
             this.powerups.clear();
             this.processedExplosionIds.clear();
+            this.processedExplosionOrder = [];
             this.localPlayer = null;
 
             // Initialize players
@@ -303,6 +309,7 @@ class GameManager {
 
                 if (player.id === this.localPlayerId) {
                     this.localPlayer = player;
+                    this.recalculateMoveDelay();
                 }
             });
 
@@ -795,7 +802,7 @@ class GameManager {
         this.playSound('explosion');
 
         if (explosionData.id) {
-            this.processedExplosionIds.add(explosionData.id);
+            this.rememberExplosion(explosionData.id);
         }
     }
 
@@ -804,10 +811,10 @@ class GameManager {
      */
     getPowerUpChance() {
         const densityMap = {
-            'low': 0.1,
-            'medium': 0.3,
-            'high': 0.5,
-            'extreme': 0.8
+            'low': 0.08,
+            'medium': 0.22,
+            'high': 0.35,
+            'extreme': 0.55
         };
         return densityMap[this.powerupDensity] || 0.3;
     }
@@ -839,12 +846,30 @@ class GameManager {
                         this.powerups.delete(id);
                         this.playSound('powerup');
 
+                        if (type === 'speed') {
+                            this.recalculateMoveDelay();
+                        }
+
                         // Sync with server
                         this.network.collectPowerUp(this.roomCode, id);
                     }
                 }
             }
         });
+    }
+
+    rememberExplosion(explosionId) {
+        if (!explosionId) return;
+        if (!this.processedExplosionIds.has(explosionId)) {
+            this.processedExplosionIds.add(explosionId);
+            this.processedExplosionOrder.push(explosionId);
+            if (this.processedExplosionOrder.length > 64) {
+                const oldest = this.processedExplosionOrder.shift();
+                if (oldest) {
+                    this.processedExplosionIds.delete(oldest);
+                }
+            }
+        }
     }
 
     syncGameState(gameState) {
@@ -963,11 +988,12 @@ class GameManager {
         // Sync explosions
         if (gameState.explosions) {
             Object.entries(gameState.explosions).forEach(([id, explosionData]) => {
-                if (!id || this.processedExplosionIds.has(id)) {
+                const explosionBombId = explosionData && explosionData.id ? explosionData.id : id;
+                if (!explosionBombId || this.processedExplosionIds.has(explosionBombId)) {
                     return;
                 }
 
-                this.processedExplosionIds.add(id);
+                this.rememberExplosion(explosionBombId);
 
                 explosionData.explosions.forEach(expl => {
                     this.explosions.push(new Explosion(expl.x, expl.y));
@@ -1145,7 +1171,33 @@ class GameManager {
     }
 
     playAgain() {
-        window.location.reload();
+        const isHost = this.roomHostId === this.localPlayerId;
+
+        const finalizeRedirect = () => {
+            const target = `index.html?room=${this.roomCode}`;
+            window.location.href = target;
+        };
+
+        if (isHost) {
+            this.network.resetGame(this.roomCode)
+                .catch(err => console.error('Failed to reset game for replay:', err))
+                .finally(() => finalizeRedirect());
+        } else {
+            finalizeRedirect();
+        }
+    }
+
+    /**
+     * Update input delay based on speed power-ups
+     */
+    recalculateMoveDelay() {
+        if (!this.localPlayer) {
+            this.moveDelay = this.baseMoveDelay;
+            return;
+        }
+
+        const bonus = Math.max(0, this.localPlayer.speed - 2);
+        this.moveDelay = Math.max(this.minMoveDelay, Math.round(this.baseMoveDelay - bonus * 20));
     }
 
     /**

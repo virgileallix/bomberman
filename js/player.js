@@ -193,10 +193,10 @@ export class Player {
                 this.speed = Math.min(4, this.speed + 0.5);
                 break;
             case 'bomb':
-                this.maxBombs = Math.min(8, this.maxBombs + 1);
+                this.maxBombs = Math.min(6, this.maxBombs + 1);
                 break;
             case 'range':
-                this.bombRange = Math.min(10, this.bombRange + 1);
+                this.bombRange = Math.min(5, this.bombRange + 1);
                 break;
             case 'kick':
                 this.canKickBombs = true;
