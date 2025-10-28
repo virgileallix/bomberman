@@ -6,12 +6,20 @@
     "rooms": {
       "$roomCode": {
         ".read": true,
-        ".write": "auth != null",
+        ".write": "auth != null && (!data.exists() || root.child('rooms').child($roomCode).child('host').val() == auth.uid || (newData.child('host').exists() && !newData.child('settings').exists() && !newData.child('status').exists()))",
 
         "players": {
           "$playerId": {
-            ".write": "auth.uid == $playerId || data.parent().child('host').val() == auth.uid"
+            ".write": "auth.uid == $playerId || root.child('rooms').child($roomCode).child('host').val() == auth.uid"
           }
+        },
+
+        "settings": {
+          ".write": "root.child('rooms').child($roomCode).child('host').val() == auth.uid"
+        },
+
+        "status": {
+          ".write": "root.child('rooms').child($roomCode).child('host').val() == auth.uid"
         },
 
         "gameState": {

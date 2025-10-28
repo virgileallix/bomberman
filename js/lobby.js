@@ -482,6 +482,12 @@ class LobbyManager {
 
     async startGame() {
         if (this.currentRoomCode && this.currentRoom) {
+            // Check if current user is the host
+            if (this.currentRoom.host !== this.network.getUserId()) {
+                this.showError('Seul l\'hôte peut démarrer la partie.');
+                return;
+            }
+
             const players = safeObjectValues(this.currentRoom.players);
 
             // Check minimum 2 players
@@ -504,7 +510,8 @@ class LobbyManager {
                 // Redirect to game
                 window.location.href = `game.html?room=${this.currentRoomCode}`;
             } catch (error) {
-                this.showError('Failed to start game');
+                console.error('Failed to start game:', error);
+                this.showError('Impossible de démarrer la partie. Seul l\'hôte peut la démarrer.');
             }
         }
     }
@@ -523,7 +530,11 @@ class LobbyManager {
                 await this.network.updateRoomSettings(this.currentRoomCode, settings);
             } catch (error) {
                 console.error('Failed to update settings:', error);
+                this.showError('Impossible de modifier les paramètres. Seul l\'hôte peut les modifier.');
             }
+        } else if (this.currentRoomCode) {
+            // Non-host tried to modify settings
+            this.showError('Seul l\'hôte peut modifier les paramètres de la partie.');
         }
     }
 

@@ -294,6 +294,19 @@ export class NetworkManager {
      * Update room settings (host only)
      */
     async updateRoomSettings(roomCode, settings) {
+        // Verify that the current user is the host
+        const roomRef = ref(this.database, `rooms/${roomCode}`);
+        const snapshot = await get(roomRef);
+
+        if (!snapshot.exists()) {
+            throw new Error('Room does not exist');
+        }
+
+        const room = snapshot.val();
+        if (room.host !== this.userId) {
+            throw new Error('Only the host can modify game settings');
+        }
+
         const settingsRef = ref(this.database, `rooms/${roomCode}/settings`);
         await update(settingsRef, settings);
     }
@@ -302,7 +315,19 @@ export class NetworkManager {
      * Start game (host only)
      */
     async startGame(roomCode) {
+        // Verify that the current user is the host
         const roomRef = ref(this.database, `rooms/${roomCode}`);
+        const snapshot = await get(roomRef);
+
+        if (!snapshot.exists()) {
+            throw new Error('Room does not exist');
+        }
+
+        const room = snapshot.val();
+        if (room.host !== this.userId) {
+            throw new Error('Only the host can start the game');
+        }
+
         await update(roomRef, {
             status: 'playing',
             startedAt: serverTimestamp()
