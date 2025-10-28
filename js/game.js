@@ -171,14 +171,17 @@ class GameManager {
             return;
         }
 
-        const playersData = (room.players && typeof room.players === 'object') ? room.players : {};
-        this.gameRunning = true;
-        // Defensive checks: room.players or room.settings might be missing if data is inconsistent
-        const playerList = Object.values(playersData);
-        if (playerList.length === 0) {
-            console.warn('startGame aborted: no players in room', room);
-            alert('La salle est invalide ou ne contient aucun joueur. Retour au lobby.');
-            window.location.href = 'index.html';
+        const roomPlayers = (room.players && typeof room.players === 'object') ? room.players : null;
+        const gameStatePlayers = (room.gameState && room.gameState.players && typeof room.gameState.players === 'object')
+            ? room.gameState.players
+            : null;
+        const playersSource = roomPlayers || gameStatePlayers;
+        const playerEntries = playersSource
+            ? Object.entries(playersSource).filter(([, data]) => data && typeof data === 'object')
+            : [];
+
+        if (playerEntries.length === 0) {
+            console.warn('startGame deferred: waiting for players data');
             return;
         }
 
@@ -194,19 +197,38 @@ class GameManager {
         // Generate grid
         this.generateGrid(settings.map);
 
+        // Reset state before populating
+        this.players.clear();
+        this.bombs.clear();
+        this.explosions = [];
+        this.powerups.clear();
+        this.localPlayer = null;
+
         // Initialize players
-        // const playerList already resolved above
         const spawnPoints = this.getSpawnPoints();
 
-        playerList.forEach((playerData, index) => {
-            const spawn = spawnPoints[index];
+        playerEntries.forEach(([id, playerData], index) => {
+            const spawn = spawnPoints[index % spawnPoints.length] || spawnPoints[0] || { x: 1, y: 1 };
+            const stateData = (gameStatePlayers && typeof gameStatePlayers === 'object') ? gameStatePlayers[id] : null;
+            const startGridX = (stateData && typeof stateData.gridX === 'number')
+                ? stateData.gridX
+                : (typeof playerData.gridX === 'number' ? playerData.gridX : spawn.x);
+            const startGridY = (stateData && typeof stateData.gridY === 'number')
+                ? stateData.gridY
+                : (typeof playerData.gridY === 'number' ? playerData.gridY : spawn.y);
             const player = new Player(
-                playerData.id,
-                playerData.username,
-                spawn.x,
-                spawn.y,
-                playerData.colorIndex
+                playerData.id || id,
+                playerData.username || `Player ${index + 1}`,
+                startGridX,
+                startGridY,
+                typeof playerData.colorIndex === 'number' ? playerData.colorIndex : index
             );
+
+            if (stateData) {
+                Object.assign(player, stateData);
+                player.targetX = stateData.x ?? player.targetX;
+                player.targetY = stateData.y ?? player.targetY;
+            }
 
             this.players.set(player.id, player);
 
@@ -214,6 +236,14 @@ class GameManager {
                 this.localPlayer = player;
             }
         });
+
+        if (!this.localPlayer) {
+            console.warn('startGame deferred: local player data missing');
+            this.players.clear();
+            return;
+        }
+
+        this.gameRunning = true;
 
         // Update HUD
         this.updatePlayersHUD();
