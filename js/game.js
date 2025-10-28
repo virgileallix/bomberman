@@ -164,9 +164,17 @@ class GameManager {
     startGame(room) {
         console.log('Starting game...');
 
+        if (!room) {
+            console.warn('startGame aborted: room data missing');
+            alert('La salle est invalide. Retour au lobby.');
+            window.location.href = 'index.html';
+            return;
+        }
+
+        const playersData = (room.players && typeof room.players === 'object') ? room.players : {};
         this.gameRunning = true;
         // Defensive checks: room.players or room.settings might be missing if data is inconsistent
-        const playerList = Object.values(room.players || {});
+        const playerList = Object.values(playersData);
         if (playerList.length === 0) {
             console.warn('startGame aborted: no players in room', room);
             alert('La salle est invalide ou ne contient aucun joueur. Retour au lobby.');
@@ -174,18 +182,20 @@ class GameManager {
             return;
         }
 
-        this.gameDuration = (room.settings && room.settings.duration) || this.gameDuration;
+        const settings = (room.settings && typeof room.settings === 'object') ? room.settings : {};
+
+        this.gameDuration = settings.duration || this.gameDuration;
         this.gameStartTime = Date.now();
 
         // Store settings
-        this.powerupsEnabled = room.settings.powerups !== false;
-        this.powerupDensity = room.settings.powerupDensity || 'medium';
+        this.powerupsEnabled = settings.powerups !== false;
+        this.powerupDensity = settings.powerupDensity || 'medium';
 
         // Generate grid
-        this.generateGrid(room.settings.map);
+        this.generateGrid(settings.map);
 
         // Initialize players
-    // const playerList already resolved above
+        // const playerList already resolved above
         const spawnPoints = this.getSpawnPoints();
 
         playerList.forEach((playerData, index) => {
