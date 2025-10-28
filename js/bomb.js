@@ -231,10 +231,10 @@ export class Explosion {
         this.x = x;
         this.y = y;
         this.timestamp = timestamp;
-        this.duration = 300; // ms
+        this.duration = 500; // ms
         this.animationFrame = 0;
         this.animationTimer = 0;
-        this.animationSpeed = 0.04; // seconds per frame
+        this.animationSpeed = 0.05; // seconds per frame
     }
 
     /**

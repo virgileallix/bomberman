@@ -18,6 +18,7 @@ class GameManager {
         this.bombs = new Map();
         this.explosions = [];
         this.powerups = new Map();
+        this.processedExplosionIds = new Set();
 
         // Local player
         this.localPlayerId = null;
@@ -269,6 +270,7 @@ class GameManager {
             this.bombs.clear();
             this.explosions = [];
             this.powerups.clear();
+            this.processedExplosionIds.clear();
             this.localPlayer = null;
 
             // Initialize players
@@ -791,6 +793,10 @@ class GameManager {
 
         // Play sound (if implemented)
         this.playSound('explosion');
+
+        if (explosionData.id) {
+            this.processedExplosionIds.add(explosionData.id);
+        }
     }
 
     /**
@@ -957,30 +963,29 @@ class GameManager {
         // Sync explosions
         if (gameState.explosions) {
             Object.entries(gameState.explosions).forEach(([id, explosionData]) => {
-                // Check if this explosion already exists
-                const exists = this.explosions.some(e =>
-                    e.x === explosionData.x && e.y === explosionData.y
-                );
-
-                if (!exists) {
-                    explosionData.explosions.forEach(expl => {
-                        this.explosions.push(new Explosion(expl.x, expl.y));
-
-                        // Destroy tiles from network explosions
-                        if (this.grid[expl.y] && this.grid[expl.y][expl.x] === 2) {
-                            this.grid[expl.y][expl.x] = 0;
-                        }
-
-                        // Kill local player if in explosion
-                        if (this.localPlayer && this.localPlayer.isAtPosition(expl.x, expl.y)) {
-                            if (this.localPlayer.kill()) {
-                                // Sync death to network
-                                this.network.updatePlayerState(this.roomCode, this.localPlayer.serialize());
-                                this.updatePlayersHUD();
-                            }
-                        }
-                    });
+                if (!id || this.processedExplosionIds.has(id)) {
+                    return;
                 }
+
+                this.processedExplosionIds.add(id);
+
+                explosionData.explosions.forEach(expl => {
+                    this.explosions.push(new Explosion(expl.x, expl.y));
+
+                    // Destroy tiles from network explosions
+                    if (this.grid[expl.y] && this.grid[expl.y][expl.x] === 2) {
+                        this.grid[expl.y][expl.x] = 0;
+                    }
+
+                    // Kill local player if in explosion
+                    if (this.localPlayer && this.localPlayer.isAtPosition(expl.x, expl.y)) {
+                        if (this.localPlayer.kill()) {
+                            // Sync death to network
+                            this.network.updatePlayerState(this.roomCode, this.localPlayer.serialize());
+                            this.updatePlayersHUD();
+                        }
+                    }
+                });
             });
         }
     }
