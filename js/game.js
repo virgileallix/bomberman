@@ -733,6 +733,12 @@ class GameManager {
 
         // Update stats
         if (this.localPlayer) {
+            // Mark room as finished so it can be cleaned up
+            try {
+                await this.network.finishGame(this.roomCode);
+            } catch (err) {
+                console.warn('Failed to mark room as finished:', err);
+            }
             await this.network.updateStats(
                 winner && winner.id === this.localPlayerId,
                 this.localPlayer.kills,

@@ -55,6 +55,9 @@ export class NetworkManager {
             // Setup presence system
             await this.setupPresence();
 
+            // Start periodic room cleanup
+            this.startRoomCleanup();
+
             return this.userId;
         } catch (error) {
             console.error("Network initialization error:", error);
@@ -143,6 +146,9 @@ export class NetworkManager {
         };
 
         await set(roomRef, roomData);
+        // Ensure the host player entry is removed on disconnect
+        const playerRef = ref(this.database, `rooms/${roomCode}/players/${this.userId}`);
+        onDisconnect(playerRef).remove();
         return roomCode;
     }
 
@@ -191,6 +197,9 @@ export class NetworkManager {
             }
         });
 
+        // Remove this player entry on disconnect
+        onDisconnect(playerRef).remove();
+
         return roomData;
     }
 
@@ -200,23 +209,21 @@ export class NetworkManager {
     async leaveRoom(roomCode) {
         const playerRef = ref(this.database, `rooms/${roomCode}/players/${this.userId}`);
         await remove(playerRef);
-
-        // If host left, delete room or transfer host
+        // After removing the player, check room state and cleanup if needed
         const roomRef = ref(this.database, `rooms/${roomCode}`);
         const snapshot = await get(roomRef);
 
         if (snapshot.exists()) {
             const roomData = snapshot.val();
-            if (roomData.host === this.userId) {
-                const remainingPlayers = Object.keys(roomData.players || {}).filter(id => id !== this.userId);
+            const players = roomData.players || {};
+            const remainingPlayers = Object.keys(players);
 
-                if (remainingPlayers.length === 0) {
-                    // Delete room if empty
-                    await remove(roomRef);
-                } else {
-                    // Transfer host to another player
-                    await update(roomRef, { host: remainingPlayers[0] });
-                }
+            if (remainingPlayers.length === 0) {
+                // Delete room if empty
+                await remove(roomRef);
+            } else if (roomData.host === this.userId) {
+                // Transfer host to another player
+                await update(roomRef, { host: remainingPlayers[0] });
             }
         }
     }
@@ -261,6 +268,17 @@ export class NetworkManager {
         await update(roomRef, {
             status: 'playing',
             startedAt: serverTimestamp()
+        });
+    }
+
+    /**
+     * Mark room as finished (called when game ends)
+     */
+    async finishGame(roomCode) {
+        const roomRef = ref(this.database, `rooms/${roomCode}`);
+        await update(roomRef, {
+            status: 'finished',
+            finishedAt: serverTimestamp()
         });
     }
 
@@ -521,6 +539,61 @@ export class NetworkManager {
 
         this.listeners[`room_${roomCode}`] = unsubscribe;
         return unsubscribe;
+    }
+
+    /**
+     * Periodic cleanup: remove empty or stale/finished rooms
+     */
+    startRoomCleanup(intervalMs = 60000) {
+        // Avoid starting multiple intervals
+        if (this._roomCleanupInterval) return;
+
+        this._roomCleanupInterval = setInterval(async () => {
+            try {
+                await this.cleanupRooms();
+            } catch (err) {
+                console.error('Room cleanup error:', err);
+            }
+        }, intervalMs);
+    }
+
+    async cleanupRooms() {
+        const roomsRef = ref(this.database, 'rooms');
+        const snapshot = await get(roomsRef);
+        if (!snapshot.exists()) return;
+
+        const finishedTTL = 60 * 1000; // 1 minute after finished -> delete
+        const staleTTL = 24 * 60 * 60 * 1000; // 24 hours for very stale rooms
+
+        const now = Date.now();
+
+        snapshot.forEach(childSnapshot => {
+            const room = childSnapshot.val();
+            const code = childSnapshot.key;
+            const roomRef = ref(this.database, `rooms/${code}`);
+
+            // Delete if no players
+            const players = room.players || {};
+            if (Object.keys(players).length === 0) {
+                remove(roomRef).catch(err => console.error('Failed to remove empty room', code, err));
+                return;
+            }
+
+            // Delete if finished and older than TTL
+            if (room.status === 'finished' && room.finishedAt) {
+                const finishedAt = room.finishedAt;
+                if (now - finishedAt > finishedTTL) {
+                    remove(roomRef).catch(err => console.error('Failed to remove finished room', code, err));
+                    return;
+                }
+            }
+
+            // Very stale room (created long ago) with no activity
+            if (room.createdAt && (now - room.createdAt > staleTTL)) {
+                remove(roomRef).catch(err => console.error('Failed to remove stale room', code, err));
+                return;
+            }
+        });
     }
 
     /**
