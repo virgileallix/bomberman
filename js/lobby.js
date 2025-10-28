@@ -1,5 +1,6 @@
 import { NetworkManager } from './network.js';
 import { AuthManager } from './auth.js';
+import { SkinManager, CHARACTER_SKINS, BOMB_SKINS } from './skins.js';
 
 /**
  * Lobby Manager - Handles lobby UI and room management
@@ -8,6 +9,7 @@ class LobbyManager {
     constructor() {
         this.auth = null;
         this.network = null;
+        this.skinManager = new SkinManager();
         this.currentRoom = null;
         this.currentRoomCode = null;
         this.roomListener = null;
@@ -444,12 +446,19 @@ class LobbyManager {
 
     async startGame() {
         if (this.currentRoomCode && this.currentRoom) {
-            // Check if all players are ready
             const players = Object.values(this.currentRoom.players);
+
+            // Check minimum 2 players
+            if (players.length < 2) {
+                this.showError('Vous devez être au moins 2 joueurs pour commencer !');
+                return;
+            }
+
+            // Check if all players are ready
             const allReady = players.every(p => p.ready);
 
             if (!allReady) {
-                this.showError('All players must be ready');
+                this.showError('Tous les joueurs doivent être prêts !');
                 return;
             }
 
@@ -512,6 +521,90 @@ class LobbyManager {
     showWaitingRoom(roomCode) {
         document.getElementById('displayRoomCode').textContent = roomCode;
         document.getElementById('waitingRoomModal').classList.remove('hidden');
+
+        // Setup skin selectors
+        this.setupSkinSelectors();
+    }
+
+    /**
+     * Setup skin selector UI
+     */
+    setupSkinSelectors() {
+        // Character skins
+        const characterSelector = document.getElementById('characterSkinSelector');
+        const characterPreview = document.getElementById('characterPreview');
+
+        characterSelector.innerHTML = Object.values(CHARACTER_SKINS).map(skin => `
+            <div class="skin-option ${skin.id === this.skinManager.selectedCharacterSkin ? 'selected' : ''}"
+                 data-skin-id="${skin.id}"
+                 data-skin-type="character"
+                 title="${skin.name}: ${skin.description}">
+                ${skin.emoji}
+            </div>
+        `).join('');
+
+        // Bomb skins
+        const bombSelector = document.getElementById('bombSkinSelector');
+        const bombPreview = document.getElementById('bombPreview');
+
+        bombSelector.innerHTML = Object.values(BOMB_SKINS).map(skin => `
+            <div class="skin-option ${skin.id === this.skinManager.selectedBombSkin ? 'selected' : ''}"
+                 data-skin-id="${skin.id}"
+                 data-skin-type="bomb"
+                 title="${skin.name}: ${skin.description}">
+                ${skin.emoji}
+            </div>
+        `).join('');
+
+        // Update previews
+        characterPreview.textContent = CHARACTER_SKINS[this.skinManager.selectedCharacterSkin].emoji;
+        bombPreview.textContent = BOMB_SKINS[this.skinManager.selectedBombSkin].emoji;
+
+        // Add event listeners
+        document.querySelectorAll('.skin-option').forEach(option => {
+            option.addEventListener('click', (e) => {
+                const skinId = e.currentTarget.dataset.skinId;
+                const skinType = e.currentTarget.dataset.skinType;
+
+                if (skinType === 'character') {
+                    this.skinManager.setCharacterSkin(skinId);
+                    characterPreview.textContent = CHARACTER_SKINS[skinId].emoji;
+
+                    // Update selection UI
+                    characterSelector.querySelectorAll('.skin-option').forEach(opt => {
+                        opt.classList.remove('selected');
+                    });
+                    e.currentTarget.classList.add('selected');
+                } else if (skinType === 'bomb') {
+                    this.skinManager.setBombSkin(skinId);
+                    bombPreview.textContent = BOMB_SKINS[skinId].emoji;
+
+                    // Update selection UI
+                    bombSelector.querySelectorAll('.skin-option').forEach(opt => {
+                        opt.classList.remove('selected');
+                    });
+                    e.currentTarget.classList.add('selected');
+                }
+
+                // TODO: Sync with network
+                this.syncSkinsToNetwork();
+            });
+        });
+    }
+
+    /**
+     * Sync selected skins to network/room
+     */
+    async syncSkinsToNetwork() {
+        if (this.currentRoomCode && this.network) {
+            try {
+                const skins = this.skinManager.getSelectedSkins();
+                await this.network.updatePlayerSkins(this.currentRoomCode, skins);
+                console.log('Skins synced:', skins);
+            } catch (error) {
+                console.error('Failed to sync skins:', error);
+            }
+        }
     }
 
     hideWaitingRoom() {

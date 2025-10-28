@@ -177,13 +177,17 @@ export class NetworkManager {
             }
         }
 
-        // Add player to room
+        // Add player to room with default skins
         const playerRef = ref(this.database, `rooms/${roomCode}/players/${this.userId}`);
         await set(playerRef, {
             id: this.userId,
             username: this.username,
             ready: false,
-            colorIndex: colorIndex
+            colorIndex: colorIndex,
+            skins: {
+                character: 'classic',
+                bomb: 'classic'
+            }
         });
 
         return roomData;
@@ -230,6 +234,14 @@ export class NetworkManager {
         }
 
         return false;
+    }
+
+    /**
+     * Update player skins
+     */
+    async updatePlayerSkins(roomCode, skins) {
+        const playerRef = ref(this.database, `rooms/${roomCode}/players/${this.userId}`);
+        await update(playerRef, { skins });
     }
 
     /**
