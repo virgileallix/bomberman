@@ -569,23 +569,119 @@ class GameManager {
         const now = Date.now();
         if (now - this.lastMoveTime < this.moveDelay) return;
 
-        let moved = false;
+        const direction = this.getInputDirection();
+        if (!direction) return;
 
-        if (this.keys['w'] || this.keys['arrowup']) {
-            moved = this.localPlayer.move('up', this.grid, this.renderer.tileSize);
-        } else if (this.keys['s'] || this.keys['arrowdown']) {
-            moved = this.localPlayer.move('down', this.grid, this.renderer.tileSize);
-        } else if (this.keys['a'] || this.keys['arrowleft']) {
-            moved = this.localPlayer.move('left', this.grid, this.renderer.tileSize);
-        } else if (this.keys['d'] || this.keys['arrowright']) {
-            moved = this.localPlayer.move('right', this.grid, this.renderer.tileSize);
-        }
-
+        const moved = this.tryMoveLocalPlayer(direction);
         if (moved) {
             this.lastMoveTime = now;
             // Sync with server (debounced)
             this.syncLocalPlayerState();
         }
+    }
+
+    getInputDirection() {
+        if (this.keys['w'] || this.keys['arrowup'] || this.keys['z']) return 'up';
+        if (this.keys['s'] || this.keys['arrowdown']) return 'down';
+        if (this.keys['a'] || this.keys['arrowleft'] || this.keys['q']) return 'left';
+        if (this.keys['d'] || this.keys['arrowright']) return 'right';
+        return null;
+    }
+
+    tryMoveLocalPlayer(direction) {
+        const vector = this.directionToVector(direction);
+        if (!vector) return false;
+
+        const targetX = this.localPlayer.gridX + vector.dx;
+        const targetY = this.localPlayer.gridY + vector.dy;
+        const targetTile = this.getTile(targetX, targetY);
+
+        if (targetTile === 3 && this.localPlayer.canKickBombs) {
+            const kicked = this.tryKickBomb(targetX, targetY, vector.dx, vector.dy);
+            if (!kicked) {
+                return false;
+            }
+        }
+
+        const moved = this.localPlayer.move(direction, this.grid, this.renderer.tileSize);
+        return moved;
+    }
+
+    directionToVector(direction) {
+        switch (direction) {
+            case 'up':
+                return { dx: 0, dy: -1 };
+            case 'down':
+                return { dx: 0, dy: 1 };
+            case 'left':
+                return { dx: -1, dy: 0 };
+            case 'right':
+                return { dx: 1, dy: 0 };
+            default:
+                return null;
+        }
+    }
+
+    getTile(x, y) {
+        if (!this.grid[y] || this.grid[y][x] === undefined) return 1;
+        return this.grid[y][x];
+    }
+
+    isWithinBounds(x, y) {
+        return y >= 0 && y < this.gridHeight && x >= 0 && x < this.gridWidth;
+    }
+
+    findBombAt(x, y) {
+        for (const bomb of this.bombs.values()) {
+            if (bomb.isAtPosition(x, y)) {
+                return bomb;
+            }
+        }
+        return null;
+    }
+
+    tryKickBomb(bombX, bombY, dx, dy) {
+        const bomb = this.findBombAt(bombX, bombY);
+        if (!bomb) return false;
+
+        let nextX = bombX + dx;
+        let nextY = bombY + dy;
+
+        if (!this.isWithinBounds(nextX, nextY)) return false;
+
+        // Find furthest position the bomb can roll to (stop before obstacle)
+        let finalX = bombX;
+        let finalY = bombY;
+        while (this.isWithinBounds(nextX, nextY) && this.getTile(nextX, nextY) === 0) {
+            finalX = nextX;
+            finalY = nextY;
+            nextX += dx;
+            nextY += dy;
+        }
+
+        if (finalX === bombX && finalY === bombY) {
+            return false;
+        }
+
+        // Update grid occupancy
+        const startGridX = Math.round(bomb.x);
+        const startGridY = Math.round(bomb.y);
+        if (this.grid[startGridY] && this.grid[startGridY][startGridX] === 3) {
+            this.grid[startGridY][startGridX] = 0;
+        }
+
+        bomb.x = finalX;
+        bomb.y = finalY;
+        bomb.stopMovement();
+
+        if (this.grid[finalY]) {
+            this.grid[finalY][finalX] = 3;
+        }
+
+        this.network.moveBomb(this.roomCode, bomb.id, { x: bomb.x, y: bomb.y })
+            .catch(err => console.error('Failed to sync kicked bomb:', err));
+
+        return true;
     }
 
     async placeBomb() {
@@ -714,6 +810,9 @@ class GameManager {
         const type = PowerUp.randomType();
         const powerup = new PowerUp(x, y, type);
         this.powerups.set(powerup.id, powerup);
+        if (this.grid[y]) {
+            this.grid[y][x] = 4;
+        }
 
         // Sync with server
         await this.network.spawnPowerUp(this.roomCode, powerup.serialize());
@@ -728,6 +827,9 @@ class GameManager {
                     const type = powerup.collect();
                     if (type) {
                         this.localPlayer.applyPowerUp(type);
+                        if (this.grid[powerup.y]) {
+                            this.grid[powerup.y][powerup.x] = 0;
+                        }
                         this.powerups.delete(id);
                         this.playSound('powerup');
 
@@ -833,15 +935,21 @@ class GameManager {
             // Remove collected power-ups
             this.powerups.forEach((powerup, id) => {
                 if (!gameState.powerups[id]) {
+                    if (this.grid[powerup.y]) {
+                        this.grid[powerup.y][powerup.x] = 0;
+                    }
                     this.powerups.delete(id);
                 }
             });
 
-            // Add new power-ups
+            // Add or update power-ups
             Object.entries(gameState.powerups).forEach(([id, powerupData]) => {
                 if (!this.powerups.has(id)) {
                     const powerup = PowerUp.deserialize(powerupData);
                     this.powerups.set(id, powerup);
+                    if (this.grid[powerup.y]) {
+                        this.grid[powerup.y][powerup.x] = 4;
+                    }
                 }
             });
         }

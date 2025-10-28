@@ -394,6 +394,17 @@ export class NetworkManager {
     }
 
     /**
+     * Move bomb (kicked by player)
+     */
+    async moveBomb(roomCode, bombId, position) {
+        const bombRef = ref(this.database, `rooms/${roomCode}/gameState/bombs/${bombId}`);
+        await update(bombRef, {
+            ...position,
+            lastMove: serverTimestamp()
+        });
+    }
+
+    /**
      * Trigger explosion
      */
     async triggerExplosion(roomCode, explosionData) {

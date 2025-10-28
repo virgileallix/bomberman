@@ -1,9 +1,15 @@
 /**
  * Bomb Class - Represents a bomb in the game
  */
+const generateSafeId = (prefix) => {
+    const timePart = Date.now().toString(36);
+    const randomPart = Math.random().toString(36).slice(2, 8);
+    return `${prefix}_${timePart}_${randomPart}`;
+};
+
 export class Bomb {
     constructor(x, y, playerId, range = 2, timer = 3000) {
-        this.id = `${playerId}_${Date.now()}_${Math.random()}`;
+        this.id = generateSafeId(playerId);
         this.x = x;
         this.y = y;
         this.playerId = playerId;
@@ -225,10 +231,10 @@ export class Explosion {
         this.x = x;
         this.y = y;
         this.timestamp = timestamp;
-        this.duration = 500; // ms
+        this.duration = 300; // ms
         this.animationFrame = 0;
         this.animationTimer = 0;
-        this.animationSpeed = 0.05; // seconds per frame
+        this.animationSpeed = 0.04; // seconds per frame
     }
 
     /**
@@ -268,7 +274,7 @@ export class Explosion {
  */
 export class PowerUp {
     constructor(x, y, type) {
-        this.id = `powerup_${Date.now()}_${Math.random()}`;
+        this.id = generateSafeId('powerup');
         this.x = x;
         this.y = y;
         this.type = type; // 'speed', 'bomb', 'range', 'kick', 'invincible'
@@ -372,7 +378,7 @@ export class PowerUp {
      */
     static randomType() {
         const types = ['speed', 'bomb', 'range', 'kick', 'invincible'];
-        const weights = [30, 30, 30, 5, 5]; // Percentage weights
+        const weights = [28, 28, 28, 10, 6];
 
         const total = weights.reduce((sum, w) => sum + w, 0);
         let random = Math.random() * total;
