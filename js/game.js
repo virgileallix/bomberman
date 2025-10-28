@@ -33,11 +33,19 @@ class GameManager {
         // Input
         this.keys = {};
         this.lastMoveTime = 0;
-        this.moveDelay = 150; // ms between moves
+        this.moveDelay = 100; // ms between moves (reduced for smoother movement)
 
         // Game loop
         this.lastFrameTime = 0;
         this.animationFrame = null;
+
+        // Sync throttling
+        this.lastSyncTime = 0;
+        this.syncDelay = 50; // ms between network syncs
+        this.pendingSync = false;
+
+        // Heartbeat
+        this.heartbeatInterval = null;
 
         this.init();
     }
@@ -91,13 +99,13 @@ class GameManager {
         // Listen to room for game settings and player list
         this.network.listenToRoom(this.roomCode, (room) => {
             if (!room) {
-                alert('Room closed');
+                alert('Salle fermée');
                 window.location.href = 'index.html';
                 return;
             }
 
             if (room.status === 'waiting') {
-                alert('Game not started yet');
+                alert('Le jeu n\'a pas encore commencé');
                 window.location.href = 'index.html';
                 return;
             }
@@ -111,6 +119,45 @@ class GameManager {
             if (!this.gameRunning) {
                 this.startGame(room);
             }
+
+            // Check for disconnected players
+            this.checkDisconnectedPlayers(room);
+        });
+
+        // Setup disconnect handler
+        this.setupDisconnectHandler();
+    }
+
+    /**
+     * Setup disconnect handler to clean up when player leaves
+     */
+    setupDisconnectHandler() {
+        window.addEventListener('beforeunload', () => {
+            if (this.localPlayer && this.gameRunning) {
+                // Mark player as disconnected
+                this.network.updatePlayerState(this.roomCode, {
+                    ...this.localPlayer.serialize(),
+                    disconnected: true
+                });
+            }
+        });
+    }
+
+    /**
+     * Check for players who disconnected and remove them
+     */
+    checkDisconnectedPlayers(room) {
+        if (!room.gameState || !room.gameState.players) return;
+
+        Object.entries(room.gameState.players).forEach(([id, playerData]) => {
+            if (playerData.disconnected && Date.now() - playerData.lastUpdate > 30000) {
+                // Player hasn't reconnected in 30 seconds, mark as dead
+                const player = this.players.get(id);
+                if (player && player.alive) {
+                    player.alive = false;
+                    this.updatePlayersHUD();
+                }
+            }
         });
     }
 
@@ -120,6 +167,10 @@ class GameManager {
         this.gameRunning = true;
         this.gameDuration = room.settings.duration;
         this.gameStartTime = Date.now();
+
+        // Store settings
+        this.powerupsEnabled = room.settings.powerups !== false;
+        this.powerupDensity = room.settings.powerupDensity || 'medium';
 
         // Generate grid
         this.generateGrid(room.settings.map);
@@ -150,6 +201,18 @@ class GameManager {
     }
 
     generateGrid(mapType) {
+        // Set grid dimensions based on map type
+        const mapSizes = {
+            'small': { width: 13, height: 11 },
+            'medium': { width: 15, height: 13 },
+            'large': { width: 19, height: 15 },
+            'xlarge': { width: 23, height: 17 }
+        };
+
+        const size = mapSizes[mapType] || mapSizes['medium'];
+        this.gridWidth = size.width;
+        this.gridHeight = size.height;
+
         // Initialize empty grid
         this.grid = Array(this.gridHeight).fill(null).map(() =>
             Array(this.gridWidth).fill(0)
@@ -173,6 +236,7 @@ class GameManager {
 
         // Add destructible crates
         const spawnSafeZones = this.getSpawnPoints();
+        const crateChance = 0.7; // 70% chance to spawn a crate
 
         for (let y = 1; y < this.gridHeight - 1; y++) {
             for (let x = 1; x < this.gridWidth - 1; x++) {
@@ -187,7 +251,7 @@ class GameManager {
                     }
                 }
 
-                if (!inSafeZone && Math.random() < 0.7) {
+                if (!inSafeZone && Math.random() < crateChance) {
                     this.grid[y][x] = 2; // Destructible
                 }
             }
@@ -265,6 +329,13 @@ class GameManager {
         };
 
         this.animationFrame = requestAnimationFrame(loop);
+
+        // Start heartbeat to keep connection alive
+        this.heartbeatInterval = setInterval(() => {
+            if (this.localPlayer && this.gameRunning) {
+                this.syncLocalPlayerState();
+            }
+        }, 2000); // Every 2 seconds
     }
 
     update(deltaTime) {
@@ -327,8 +398,8 @@ class GameManager {
 
         if (moved) {
             this.lastMoveTime = now;
-            // Sync with server
-            this.network.updatePlayerPosition(this.roomCode, this.localPlayer.serialize());
+            // Sync with server (debounced)
+            this.syncLocalPlayerState();
         }
     }
 
@@ -385,8 +456,8 @@ class GameManager {
             if (this.grid[expl.y][expl.x] === 2) {
                 this.grid[expl.y][expl.x] = 0;
 
-                // Chance to spawn power-up
-                if (Math.random() < 0.3) {
+                // Chance to spawn power-up based on density setting
+                if (this.powerupsEnabled && Math.random() < this.getPowerUpChance()) {
                     this.spawnPowerUp(expl.x, expl.y);
                 }
             }
@@ -396,10 +467,27 @@ class GameManager {
                 if (player.isAtPosition(expl.x, expl.y)) {
                     if (player.kill()) {
                         // Award kill to bomb owner
+                        let killer = null;
                         if (player.id !== bomb.playerId) {
-                            const killer = this.players.get(bomb.playerId);
+                            killer = this.players.get(bomb.playerId);
                             if (killer) killer.kills++;
                         }
+
+                        // Sync death to network
+                        if (player.id === this.localPlayerId) {
+                            // Local player died
+                            this.network.updatePlayerState(this.roomCode, player.serialize());
+                        } else {
+                            // Remote player died (if we are the bomb owner)
+                            if (bomb.playerId === this.localPlayerId) {
+                                this.network.killPlayer(this.roomCode, player.id, {
+                                    deaths: player.deaths,
+                                    killerId: this.localPlayerId,
+                                    kills: killer ? killer.kills : 0
+                                });
+                            }
+                        }
+
                         this.updatePlayersHUD();
                     }
                 }
@@ -424,13 +512,26 @@ class GameManager {
         this.playSound('explosion');
     }
 
+    /**
+     * Get power-up spawn chance based on density setting
+     */
+    getPowerUpChance() {
+        const densityMap = {
+            'low': 0.1,
+            'medium': 0.3,
+            'high': 0.5,
+            'extreme': 0.8
+        };
+        return densityMap[this.powerupDensity] || 0.3;
+    }
+
     async spawnPowerUp(x, y) {
         const type = PowerUp.randomType();
         const powerup = new PowerUp(x, y, type);
         this.powerups.set(powerup.id, powerup);
 
-        // Sync with server (if local player is host)
-        // For simplicity, all players spawn their own power-ups
+        // Sync with server
+        await this.network.spawnPowerUp(this.roomCode, powerup.serialize());
     }
 
     checkPowerUpCollection() {
@@ -464,29 +565,100 @@ class GameManager {
                     player = Player.deserialize(playerData);
                     this.players.set(id, player);
                 } else {
-                    // Update player state
-                    Object.assign(player, playerData);
+                    // Update ALL player state from network
+                    player.targetX = playerData.x;
+                    player.targetY = playerData.y;
+                    player.gridX = playerData.gridX;
+                    player.gridY = playerData.gridY;
+                    player.direction = playerData.direction;
+                    player.alive = playerData.alive;
+                    player.kills = playerData.kills;
+                    player.deaths = playerData.deaths;
+                    player.speed = playerData.speed;
+                    player.maxBombs = playerData.maxBombs;
+                    player.currentBombs = playerData.currentBombs;
+                    player.bombRange = playerData.bombRange;
+                    player.invincible = playerData.invincible;
+                    player.currentEmote = playerData.currentEmote;
                 }
             });
+
+            // Update HUD when player states change
+            this.updatePlayersHUD();
         }
 
         // Sync bombs from network
         if (gameState.bombs) {
+            // Remove bombs that no longer exist on server
+            this.bombs.forEach((bomb, id) => {
+                if (!gameState.bombs[id]) {
+                    this.bombs.delete(id);
+                    const gridY = Math.round(bomb.y);
+                    const gridX = Math.round(bomb.x);
+                    if (this.grid[gridY] && this.grid[gridY][gridX] === 3) {
+                        this.grid[gridY][gridX] = 0;
+                    }
+                }
+            });
+
+            // Add or update bombs from server
             Object.entries(gameState.bombs).forEach(([id, bombData]) => {
                 if (!this.bombs.has(id)) {
                     const bomb = Bomb.deserialize(bombData);
                     this.bombs.set(id, bomb);
-                    this.grid[Math.round(bomb.y)][Math.round(bomb.x)] = 3;
+                    const gridY = Math.round(bomb.y);
+                    const gridX = Math.round(bomb.x);
+                    if (this.grid[gridY] && this.grid[gridY][gridX] !== undefined) {
+                        this.grid[gridY][gridX] = 3;
+                    }
                 }
             });
         }
 
         // Sync power-ups
         if (gameState.powerups) {
+            // Remove collected power-ups
+            this.powerups.forEach((powerup, id) => {
+                if (!gameState.powerups[id]) {
+                    this.powerups.delete(id);
+                }
+            });
+
+            // Add new power-ups
             Object.entries(gameState.powerups).forEach(([id, powerupData]) => {
                 if (!this.powerups.has(id)) {
                     const powerup = PowerUp.deserialize(powerupData);
                     this.powerups.set(id, powerup);
+                }
+            });
+        }
+
+        // Sync explosions
+        if (gameState.explosions) {
+            Object.entries(gameState.explosions).forEach(([id, explosionData]) => {
+                // Check if this explosion already exists
+                const exists = this.explosions.some(e =>
+                    e.x === explosionData.x && e.y === explosionData.y
+                );
+
+                if (!exists) {
+                    explosionData.explosions.forEach(expl => {
+                        this.explosions.push(new Explosion(expl.x, expl.y));
+
+                        // Destroy tiles from network explosions
+                        if (this.grid[expl.y] && this.grid[expl.y][expl.x] === 2) {
+                            this.grid[expl.y][expl.x] = 0;
+                        }
+
+                        // Kill local player if in explosion
+                        if (this.localPlayer && this.localPlayer.isAtPosition(expl.x, expl.y)) {
+                            if (this.localPlayer.kill()) {
+                                // Sync death to network
+                                this.network.updatePlayerState(this.roomCode, this.localPlayer.serialize());
+                                this.updatePlayersHUD();
+                            }
+                        }
+                    });
                 }
             });
         }
@@ -644,6 +816,29 @@ class GameManager {
         window.location.reload();
     }
 
+    /**
+     * Sync local player state to network (throttled)
+     */
+    syncLocalPlayerState() {
+        const now = Date.now();
+
+        if (now - this.lastSyncTime >= this.syncDelay) {
+            // Sync immediately
+            this.lastSyncTime = now;
+            this.network.updatePlayerState(this.roomCode, this.localPlayer.serialize())
+                .catch(err => console.error('Failed to sync player state:', err));
+        } else if (!this.pendingSync) {
+            // Schedule sync
+            this.pendingSync = true;
+            setTimeout(() => {
+                this.pendingSync = false;
+                this.lastSyncTime = Date.now();
+                this.network.updatePlayerState(this.roomCode, this.localPlayer.serialize())
+                    .catch(err => console.error('Failed to sync player state:', err));
+            }, this.syncDelay - (now - this.lastSyncTime));
+        }
+    }
+
     playSound(type) {
         // TODO: Implement sound effects
         console.log('Play sound:', type);
@@ -652,6 +847,9 @@ class GameManager {
     cleanup() {
         if (this.animationFrame) {
             cancelAnimationFrame(this.animationFrame);
+        }
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
         }
         this.network.removeAllListeners();
     }

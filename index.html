@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bomberman Multiplayer - Lobby</title>
     <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="css/skin-editor.css">
+    <link rel="stylesheet" href="css/customization.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -158,173 +158,428 @@
 
     <!-- Skin Customization Modal -->
     <div id="skinCustomizationModal" class="modal hidden">
-        <div class="modal-content skin-editor-modal">
-            <div class="modal-header">
-                <h2>🎨 Personnalisation des Skins</h2>
+        <div class="modal-content customization-modal">
+            <div class="customization-header">
+                <h2>🎨 Personnalisation</h2>
                 <button class="btn-close" id="closeSkinEditor">✕</button>
             </div>
 
-            <div class="skin-editor-container">
-                <!-- Tabs -->
-                <div class="skin-tabs">
-                    <button class="skin-tab active" data-tab="character">
-                        <span>👤</span> Personnage
+            <div class="customization-layout">
+                <!-- Sidebar Navigation -->
+                <div class="customization-sidebar">
+                    <button class="sidebar-tab active" data-tab="character">
+                        <div class="tab-icon">👤</div>
+                        <div class="tab-label">Personnage</div>
                     </button>
-                    <button class="skin-tab" data-tab="bomb">
-                        <span>💣</span> Bombe
+                    <button class="sidebar-tab" data-tab="bomb">
+                        <div class="tab-icon">💣</div>
+                        <div class="tab-label">Bombe</div>
+                    </button>
+                    <button class="sidebar-tab" data-tab="explosion">
+                        <div class="tab-icon">💥</div>
+                        <div class="tab-label">Explosion</div>
+                    </button>
+                    <button class="sidebar-tab" data-tab="kill">
+                        <div class="tab-icon">⚔️</div>
+                        <div class="tab-label">Effet Kill</div>
+                    </button>
+                    <button class="sidebar-tab" data-tab="death">
+                        <div class="tab-icon">💀</div>
+                        <div class="tab-label">Effet Mort</div>
+                    </button>
+                    <button class="sidebar-tab" data-tab="trail">
+                        <div class="tab-icon">✨</div>
+                        <div class="tab-label">Traînée</div>
                     </button>
                 </div>
 
-                <!-- Character Editor -->
-                <div class="skin-editor-content" id="characterEditor">
-                    <div class="editor-grid">
-                        <!-- Preview -->
-                        <div class="editor-preview-section">
-                            <h3>Aperçu</h3>
-                            <div class="preview-container">
-                                <canvas id="characterPreviewCanvas" width="128" height="128"></canvas>
-                            </div>
-                            <div class="preview-info">
-                                <p>Taille: 32x32 pixels</p>
-                            </div>
+                <!-- Main Content Area -->
+                <div class="customization-content">
+
+                    <!-- Character Tab -->
+                    <div class="tab-panel active" data-panel="character">
+                        <div class="panel-header">
+                            <h3>👤 Skin de Personnage</h3>
+                            <p>Dessinez votre propre personnage ou choisissez un skin préfait</p>
                         </div>
 
-                        <!-- Tools -->
-                        <div class="editor-tools-section">
-                            <h3>Outils</h3>
+                        <div class="editor-layout">
+                            <div class="editor-left">
+                                <div class="preview-box">
+                                    <h4>Aperçu</h4>
+                                    <canvas id="characterPreviewCanvas" width="128" height="128"></canvas>
+                                    <span class="preview-size">32x32 pixels</span>
+                                </div>
 
-                            <!-- Premade Skins -->
-                            <div class="premade-skins">
-                                <h4>Skins Préfaits</h4>
-                                <div class="premade-grid" id="characterPremadeGrid">
-                                    <!-- Will be populated by JS -->
+                                <div class="premade-box">
+                                    <h4>Skins Préfaits</h4>
+                                    <div class="premade-scroll" id="characterPremadeGrid"></div>
                                 </div>
                             </div>
 
-                            <!-- Drawing Tools -->
-                            <div class="drawing-tools">
-                                <h4>Dessiner</h4>
-                                <div class="tool-buttons">
-                                    <button class="tool-btn active" data-tool="pencil" title="Crayon">✏️</button>
-                                    <button class="tool-btn" data-tool="eraser" title="Gomme">🧹</button>
-                                    <button class="tool-btn" data-tool="fill" title="Remplir">🪣</button>
-                                    <button class="tool-btn" data-tool="picker" title="Pipette">💧</button>
+                            <div class="editor-center">
+                                <div class="canvas-box">
+                                    <canvas id="characterCanvas" width="32" height="32"></canvas>
                                 </div>
-                                <div class="color-picker-section">
-                                    <label>Couleur:</label>
-                                    <input type="color" id="characterColorPicker" value="#00f0ff">
-                                    <div class="color-presets" id="characterColorPresets">
-                                        <div class="color-preset" style="background: #00f0ff" data-color="#00f0ff"></div>
-                                        <div class="color-preset" style="background: #ff00ff" data-color="#ff00ff"></div>
-                                        <div class="color-preset" style="background: #ffff00" data-color="#ffff00"></div>
-                                        <div class="color-preset" style="background: #00ff88" data-color="#00ff88"></div>
-                                        <div class="color-preset" style="background: #ff0055" data-color="#ff0055"></div>
-                                        <div class="color-preset" style="background: #ffffff" data-color="#ffffff"></div>
+                            </div>
+
+                            <div class="editor-right">
+                                <div class="tools-box">
+                                    <h4>Outils</h4>
+                                    <div class="tool-grid">
+                                        <button class="tool-btn active" data-tool="pencil" title="Crayon">✏️</button>
+                                        <button class="tool-btn" data-tool="eraser" title="Gomme">🧹</button>
+                                        <button class="tool-btn" data-tool="fill" title="Remplir">🪣</button>
+                                        <button class="tool-btn" data-tool="picker" title="Pipette">💧</button>
+                                    </div>
+
+                                    <div class="color-box">
+                                        <label>Couleur</label>
+                                        <input type="color" id="characterColorPicker" value="#00f0ff">
+                                        <div class="color-presets" id="characterColorPresets">
+                                            <div class="preset" style="background: #00f0ff" data-color="#00f0ff"></div>
+                                            <div class="preset" style="background: #ff00ff" data-color="#ff00ff"></div>
+                                            <div class="preset" style="background: #ffff00" data-color="#ffff00"></div>
+                                            <div class="preset" style="background: #00ff88" data-color="#00ff88"></div>
+                                            <div class="preset" style="background: #ff0055" data-color="#ff0055"></div>
+                                            <div class="preset" style="background: #ffffff" data-color="#ffffff"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="actions-box">
+                                        <label class="file-btn">
+                                            📁 Importer
+                                            <input type="file" id="characterImageUpload" accept="image/*" hidden>
+                                        </label>
+                                        <button class="action-btn" id="characterClearBtn">🗑️ Effacer</button>
+                                        <button class="action-btn" id="characterExportBtn">💾 Exporter</button>
                                     </div>
                                 </div>
                             </div>
-
-                            <!-- Import/Export -->
-                            <div class="import-export">
-                                <h4>Importer / Exporter</h4>
-                                <label class="file-upload-btn">
-                                    📁 Importer Image
-                                    <input type="file" id="characterImageUpload" accept="image/*" hidden>
-                                </label>
-                                <button class="btn btn-small" id="characterClearBtn">🗑️ Effacer</button>
-                                <button class="btn btn-small" id="characterExportBtn">💾 Télécharger</button>
-                            </div>
                         </div>
 
-                        <!-- Canvas Editor -->
-                        <div class="editor-canvas-section">
-                            <h3>Éditeur (32x32)</h3>
-                            <div class="canvas-wrapper">
-                                <canvas id="characterCanvas" width="32" height="32"></canvas>
-                            </div>
+                        <div class="panel-footer">
+                            <button class="btn-cancel" id="cancelCharacterSkin">Annuler</button>
+                            <button class="btn-save" id="saveCharacterSkin">💾 Sauvegarder</button>
                         </div>
                     </div>
 
-                    <div class="editor-actions">
-                        <button class="btn btn-secondary" id="cancelCharacterSkin">Annuler</button>
-                        <button class="btn btn-primary" id="saveCharacterSkin">💾 Sauvegarder</button>
-                    </div>
-                </div>
-
-                <!-- Bomb Editor -->
-                <div class="skin-editor-content hidden" id="bombEditor">
-                    <div class="editor-grid">
-                        <!-- Preview -->
-                        <div class="editor-preview-section">
-                            <h3>Aperçu</h3>
-                            <div class="preview-container">
-                                <canvas id="bombPreviewCanvas" width="128" height="128"></canvas>
-                            </div>
-                            <div class="preview-info">
-                                <p>Taille: 32x32 pixels</p>
-                            </div>
+                    <!-- Bomb Tab -->
+                    <div class="tab-panel" data-panel="bomb">
+                        <div class="panel-header">
+                            <h3>💣 Skin de Bombe</h3>
+                            <p>Personnalisez l'apparence de vos bombes</p>
                         </div>
 
-                        <!-- Tools -->
-                        <div class="editor-tools-section">
-                            <h3>Outils</h3>
+                        <div class="editor-layout">
+                            <div class="editor-left">
+                                <div class="preview-box">
+                                    <h4>Aperçu</h4>
+                                    <canvas id="bombPreviewCanvas" width="128" height="128"></canvas>
+                                    <span class="preview-size">32x32 pixels</span>
+                                </div>
 
-                            <!-- Premade Skins -->
-                            <div class="premade-skins">
-                                <h4>Skins Préfaits</h4>
-                                <div class="premade-grid" id="bombPremadeGrid">
-                                    <!-- Will be populated by JS -->
+                                <div class="premade-box">
+                                    <h4>Skins Préfaits</h4>
+                                    <div class="premade-scroll" id="bombPremadeGrid"></div>
                                 </div>
                             </div>
 
-                            <!-- Drawing Tools -->
-                            <div class="drawing-tools">
-                                <h4>Dessiner</h4>
-                                <div class="tool-buttons">
-                                    <button class="tool-btn active" data-tool="pencil" title="Crayon">✏️</button>
-                                    <button class="tool-btn" data-tool="eraser" title="Gomme">🧹</button>
-                                    <button class="tool-btn" data-tool="fill" title="Remplir">🪣</button>
-                                    <button class="tool-btn" data-tool="picker" title="Pipette">💧</button>
+                            <div class="editor-center">
+                                <div class="canvas-box">
+                                    <canvas id="bombCanvas" width="32" height="32"></canvas>
                                 </div>
-                                <div class="color-picker-section">
-                                    <label>Couleur:</label>
-                                    <input type="color" id="bombColorPicker" value="#000000">
-                                    <div class="color-presets" id="bombColorPresets">
-                                        <div class="color-preset" style="background: #000000" data-color="#000000"></div>
-                                        <div class="color-preset" style="background: #ff0000" data-color="#ff0000"></div>
-                                        <div class="color-preset" style="background: #ff6600" data-color="#ff6600"></div>
-                                        <div class="color-preset" style="background: #ffcc00" data-color="#ffcc00"></div>
-                                        <div class="color-preset" style="background: #808080" data-color="#808080"></div>
-                                        <div class="color-preset" style="background: #ffffff" data-color="#ffffff"></div>
+                            </div>
+
+                            <div class="editor-right">
+                                <div class="tools-box">
+                                    <h4>Outils</h4>
+                                    <div class="tool-grid">
+                                        <button class="tool-btn active" data-tool="pencil" title="Crayon">✏️</button>
+                                        <button class="tool-btn" data-tool="eraser" title="Gomme">🧹</button>
+                                        <button class="tool-btn" data-tool="fill" title="Remplir">🪣</button>
+                                        <button class="tool-btn" data-tool="picker" title="Pipette">💧</button>
+                                    </div>
+
+                                    <div class="color-box">
+                                        <label>Couleur</label>
+                                        <input type="color" id="bombColorPicker" value="#000000">
+                                        <div class="color-presets" id="bombColorPresets">
+                                            <div class="preset" style="background: #000000" data-color="#000000"></div>
+                                            <div class="preset" style="background: #ff0000" data-color="#ff0000"></div>
+                                            <div class="preset" style="background: #ff6600" data-color="#ff6600"></div>
+                                            <div class="preset" style="background: #ffcc00" data-color="#ffcc00"></div>
+                                            <div class="preset" style="background: #808080" data-color="#808080"></div>
+                                            <div class="preset" style="background: #ffffff" data-color="#ffffff"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="actions-box">
+                                        <label class="file-btn">
+                                            📁 Importer
+                                            <input type="file" id="bombImageUpload" accept="image/*" hidden>
+                                        </label>
+                                        <button class="action-btn" id="bombClearBtn">🗑️ Effacer</button>
+                                        <button class="action-btn" id="bombExportBtn">💾 Exporter</button>
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            <!-- Import/Export -->
-                            <div class="import-export">
-                                <h4>Importer / Exporter</h4>
-                                <label class="file-upload-btn">
-                                    📁 Importer Image
-                                    <input type="file" id="bombImageUpload" accept="image/*" hidden>
-                                </label>
-                                <button class="btn btn-small" id="bombClearBtn">🗑️ Effacer</button>
-                                <button class="btn btn-small" id="bombExportBtn">💾 Télécharger</button>
+                        <div class="panel-footer">
+                            <button class="btn-cancel" id="cancelBombSkin">Annuler</button>
+                            <button class="btn-save" id="saveBombSkin">💾 Sauvegarder</button>
+                        </div>
+                    </div>
+
+                    <!-- Explosion Tab -->
+                    <div class="tab-panel" data-panel="explosion">
+                        <div class="panel-header">
+                            <h3>💥 Effet d'Explosion</h3>
+                            <p>Choisissez le style de vos explosions</p>
+                        </div>
+
+                        <div class="effects-grid">
+                            <div class="effect-card" data-effect="classic">
+                                <div class="effect-preview">💥</div>
+                                <h4>Classique</h4>
+                                <p>Explosion orange/rouge traditionnelle</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="fire">
+                                <div class="effect-preview">🔥</div>
+                                <h4>Feu</h4>
+                                <p>Flammes intenses et vives</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="electric">
+                                <div class="effect-preview">⚡</div>
+                                <h4>Électrique</h4>
+                                <p>Éclairs bleus électriques</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="ice">
+                                <div class="effect-preview">❄️</div>
+                                <h4>Glace</h4>
+                                <p>Explosion glacée bleue/blanche</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="toxic">
+                                <div class="effect-preview">☢️</div>
+                                <h4>Toxique</h4>
+                                <p>Nuage vert empoisonné</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="rainbow">
+                                <div class="effect-preview">🌈</div>
+                                <h4>Arc-en-ciel</h4>
+                                <p>Explosion multicolore</p>
+                                <button class="select-btn">Sélectionner</button>
                             </div>
                         </div>
 
-                        <!-- Canvas Editor -->
-                        <div class="editor-canvas-section">
-                            <h3>Éditeur (32x32)</h3>
-                            <div class="canvas-wrapper">
-                                <canvas id="bombCanvas" width="32" height="32"></canvas>
+                        <div class="effect-options">
+                            <h4>Options</h4>
+                            <label>
+                                <span>Taille</span>
+                                <input type="range" id="explosionSize" min="80" max="150" value="100">
+                                <span id="explosionSizeValue">100%</span>
+                            </label>
+                            <label>
+                                <span>Durée</span>
+                                <input type="range" id="explosionDuration" min="300" max="1000" value="500">
+                                <span id="explosionDurationValue">500ms</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Kill Effect Tab -->
+                    <div class="tab-panel" data-panel="kill">
+                        <div class="panel-header">
+                            <h3>⚔️ Effet de Kill</h3>
+                            <p>Animation quand vous éliminez un ennemi</p>
+                        </div>
+
+                        <div class="effects-grid">
+                            <div class="effect-card" data-effect="none">
+                                <div class="effect-preview">❌</div>
+                                <h4>Aucun</h4>
+                                <p>Pas d'effet spécial</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="confetti">
+                                <div class="effect-preview">🎉</div>
+                                <h4>Confettis</h4>
+                                <p>Explosion de confettis colorés</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="stars">
+                                <div class="effect-preview">⭐</div>
+                                <h4>Étoiles</h4>
+                                <p>Étoiles dorées brillantes</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="skulls">
+                                <div class="effect-preview">💀</div>
+                                <h4>Crânes</h4>
+                                <p>Crânes flottants sombres</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="hearts">
+                                <div class="effect-preview">💖</div>
+                                <h4>Cœurs</h4>
+                                <p>Cœurs roses qui montent</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="lightning">
+                                <div class="effect-preview">⚡</div>
+                                <h4>Foudre</h4>
+                                <p>Impact de foudre dramatique</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+                        </div>
+
+                        <div class="effect-options">
+                            <h4>Options</h4>
+                            <label>
+                                <input type="checkbox" id="killSound" checked>
+                                <span>Son d'effet</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="killText" checked>
+                                <span>Afficher texte "KILL"</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Death Effect Tab -->
+                    <div class="tab-panel" data-panel="death">
+                        <div class="panel-header">
+                            <h3>💀 Effet de Mort</h3>
+                            <p>Animation de votre personnage quand vous mourrez</p>
+                        </div>
+
+                        <div class="effects-grid">
+                            <div class="effect-card" data-effect="fade">
+                                <div class="effect-preview">👻</div>
+                                <h4>Disparition</h4>
+                                <p>Disparaît progressivement</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="explode">
+                                <div class="effect-preview">💥</div>
+                                <h4>Explosion</h4>
+                                <p>Explose en morceaux</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="ascend">
+                                <div class="effect-preview">🕊️</div>
+                                <h4>Ascension</h4>
+                                <p>Monte vers le ciel</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="melt">
+                                <div class="effect-preview">💧</div>
+                                <h4>Fonte</h4>
+                                <p>Fond sur place</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="spin">
+                                <div class="effect-preview">🌀</div>
+                                <h4>Tourbillon</h4>
+                                <p>Tourne et disparaît</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="angel">
+                                <div class="effect-preview">😇</div>
+                                <h4>Ange</h4>
+                                <p>Se transforme en ange</p>
+                                <button class="select-btn">Sélectionner</button>
                             </div>
                         </div>
                     </div>
 
-                    <div class="editor-actions">
-                        <button class="btn btn-secondary" id="cancelBombSkin">Annuler</button>
-                        <button class="btn btn-primary" id="saveBombSkin">💾 Sauvegarder</button>
+                    <!-- Trail Effect Tab -->
+                    <div class="tab-panel" data-panel="trail">
+                        <div class="panel-header">
+                            <h3>✨ Effet de Traînée</h3>
+                            <p>Particules qui suivent votre personnage</p>
+                        </div>
+
+                        <div class="effects-grid">
+                            <div class="effect-card" data-effect="none">
+                                <div class="effect-preview">❌</div>
+                                <h4>Aucun</h4>
+                                <p>Pas de traînée</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="sparkles">
+                                <div class="effect-preview">✨</div>
+                                <h4>Étincelles</h4>
+                                <p>Petites étincelles dorées</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="fire">
+                                <div class="effect-preview">🔥</div>
+                                <h4>Feu</h4>
+                                <p>Traînée de feu</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="smoke">
+                                <div class="effect-preview">💨</div>
+                                <h4>Fumée</h4>
+                                <p>Nuage de fumée</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="rainbow">
+                                <div class="effect-preview">🌈</div>
+                                <h4>Arc-en-ciel</h4>
+                                <p>Traînée multicolore</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+
+                            <div class="effect-card" data-effect="neon">
+                                <div class="effect-preview">💫</div>
+                                <h4>Néon</h4>
+                                <p>Lueur néon brillante</p>
+                                <button class="select-btn">Sélectionner</button>
+                            </div>
+                        </div>
+
+                        <div class="effect-options">
+                            <h4>Options</h4>
+                            <label>
+                                <span>Intensité</span>
+                                <input type="range" id="trailIntensity" min="1" max="10" value="5">
+                                <span id="trailIntensityValue">5</span>
+                            </label>
+                            <label>
+                                <span>Durée de vie</span>
+                                <input type="range" id="trailLifetime" min="200" max="1000" value="500">
+                                <span id="trailLifetimeValue">500ms</span>
+                            </label>
+                        </div>
                     </div>
+
                 </div>
             </div>
         </div>
@@ -351,23 +606,35 @@
                 <h3>Game Settings</h3>
                 <div class="settings-grid">
                     <label>
-                        Map
+                        Taille de la map
                         <select id="mapSelect">
-                            <option value="classic">Classic</option>
-                            <option value="maze">Maze</option>
-                            <option value="arena">Arena</option>
+                            <option value="small">Petite (13x11)</option>
+                            <option value="medium" selected>Moyenne (15x13)</option>
+                            <option value="large">Grande (19x15)</option>
+                            <option value="xlarge">Très grande (23x17)</option>
                         </select>
                     </label>
                     <label>
-                        Round Duration
+                        Durée
                         <select id="durationSelect">
+                            <option value="120">2 minutes</option>
                             <option value="180">3 minutes</option>
                             <option value="300" selected>5 minutes</option>
                             <option value="480">8 minutes</option>
+                            <option value="600">10 minutes</option>
                         </select>
                     </label>
                     <label>
-                        Power-ups
+                        Densité power-ups
+                        <select id="powerupDensitySelect">
+                            <option value="low">Faible (10%)</option>
+                            <option value="medium" selected>Moyenne (30%)</option>
+                            <option value="high">Élevée (50%)</option>
+                            <option value="extreme">Extrême (80%)</option>
+                        </select>
+                    </label>
+                    <label>
+                        Power-ups activés
                         <input type="checkbox" id="powerupsToggle" checked>
                     </label>
                 </div>

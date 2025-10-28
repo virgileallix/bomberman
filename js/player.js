@@ -105,6 +105,12 @@ export class Player {
         if (!this.alive) return false;
 
         this.direction = direction;
+
+        // Only move if we're at the target position (not mid-movement)
+        if (Math.abs(this.x - this.targetX) > 0.1 || Math.abs(this.y - this.targetY) > 0.1) {
+            return false;
+        }
+
         let newGridX = this.gridX;
         let newGridY = this.gridY;
 

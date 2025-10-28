@@ -124,8 +124,9 @@ export class NetworkManager {
             host: this.userId,
             status: 'waiting', // waiting, playing, finished
             settings: {
-                map: settings.map || 'classic',
+                map: settings.map || 'medium',
                 duration: settings.duration || 300,
+                powerupDensity: settings.powerupDensity || 'medium',
                 powerups: settings.powerups !== false,
                 maxPlayers: 4
             },
@@ -292,14 +293,42 @@ export class NetworkManager {
     // ==================== GAME STATE ====================
 
     /**
-     * Update player position
+     * Update player state (position, alive status, etc.)
      */
-    async updatePlayerPosition(roomCode, playerData) {
+    async updatePlayerState(roomCode, playerData) {
         const playerRef = ref(this.database, `rooms/${roomCode}/gameState/players/${this.userId}`);
         await set(playerRef, {
             ...playerData,
             lastUpdate: serverTimestamp()
         });
+    }
+
+    /**
+     * Update player position (legacy alias)
+     */
+    async updatePlayerPosition(roomCode, playerData) {
+        return this.updatePlayerState(roomCode, playerData);
+    }
+
+    /**
+     * Mark player as dead
+     */
+    async killPlayer(roomCode, playerId, killerData) {
+        const playerRef = ref(this.database, `rooms/${roomCode}/gameState/players/${playerId}`);
+        await update(playerRef, {
+            alive: false,
+            deaths: killerData.deaths,
+            lastUpdate: serverTimestamp()
+        });
+
+        // Update killer's kills if different player
+        if (killerData.killerId && killerData.killerId !== playerId) {
+            const killerRef = ref(this.database, `rooms/${roomCode}/gameState/players/${killerData.killerId}`);
+            await update(killerRef, {
+                kills: killerData.kills,
+                lastUpdate: serverTimestamp()
+            });
+        }
     }
 
     /**

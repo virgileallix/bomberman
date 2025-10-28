@@ -256,6 +256,7 @@ class LobbyManager {
         // Settings (host only)
         document.getElementById('mapSelect').addEventListener('change', () => this.updateSettings());
         document.getElementById('durationSelect').addEventListener('change', () => this.updateSettings());
+        document.getElementById('powerupDensitySelect').addEventListener('change', () => this.updateSettings());
         document.getElementById('powerupsToggle').addEventListener('change', () => this.updateSettings());
     }
 
@@ -505,6 +506,7 @@ class LobbyManager {
             const settings = {
                 map: document.getElementById('mapSelect').value,
                 duration: parseInt(document.getElementById('durationSelect').value),
+                powerupDensity: document.getElementById('powerupDensitySelect').value,
                 powerups: document.getElementById('powerupsToggle').checked
             };
 
@@ -590,9 +592,10 @@ class LobbyManager {
         const settingsDiv = document.getElementById('roomSettings');
         if (isHost) {
             settingsDiv.classList.remove('hidden');
-            document.getElementById('mapSelect').value = room.settings.map;
-            document.getElementById('durationSelect').value = room.settings.duration;
-            document.getElementById('powerupsToggle').checked = room.settings.powerups;
+            document.getElementById('mapSelect').value = room.settings.map || 'medium';
+            document.getElementById('durationSelect').value = room.settings.duration || 300;
+            document.getElementById('powerupDensitySelect').value = room.settings.powerupDensity || 'medium';
+            document.getElementById('powerupsToggle').checked = room.settings.powerups !== false;
         } else {
             settingsDiv.classList.add('hidden');
         }
@@ -720,11 +723,11 @@ class LobbyManager {
             document.getElementById('skinCustomizationModal').classList.add('hidden');
         });
 
-        // Tabs
-        document.querySelectorAll('.skin-tab').forEach(tab => {
+        // Sidebar Tabs
+        document.querySelectorAll('.sidebar-tab').forEach(tab => {
             tab.addEventListener('click', (e) => {
                 const targetTab = e.currentTarget.dataset.tab;
-                this.switchSkinTab(targetTab);
+                this.switchCustomizationTab(targetTab);
             });
         });
 
@@ -808,16 +811,143 @@ class LobbyManager {
     }
 
     /**
-     * Switch between character and bomb tabs
+     * Switch customization tab
      */
-    switchSkinTab(tab) {
-        // Update tab buttons
-        document.querySelectorAll('.skin-tab').forEach(t => t.classList.remove('active'));
-        document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+    switchCustomizationTab(tab) {
+        // Update sidebar buttons
+        document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+        document.querySelector(`.sidebar-tab[data-tab="${tab}"]`).classList.add('active');
 
-        // Update content
-        document.getElementById('characterEditor').classList.toggle('hidden', tab !== 'character');
-        document.getElementById('bombEditor').classList.toggle('hidden', tab !== 'bomb');
+        // Update content panels
+        document.querySelectorAll('.tab-panel').forEach(panel => {
+            panel.classList.remove('active');
+        });
+        document.querySelector(`.tab-panel[data-panel="${tab}"]`)?.classList.add('active');
+
+        // Initialize effects if needed
+        if (['explosion', 'kill', 'death', 'trail'].includes(tab)) {
+            this.initializeEffectsTab(tab);
+        }
+    }
+
+    /**
+     * Initialize effects tab
+     */
+    initializeEffectsTab(tab) {
+        // Load saved effects
+        const effects = JSON.parse(localStorage.getItem('bomberman_effects') || '{}');
+
+        // Setup effect selection
+        document.querySelectorAll(`.tab-panel[data-panel="${tab}"] .effect-card`).forEach(card => {
+            const effectType = card.dataset.effect;
+            const savedEffect = effects[tab];
+
+            // Mark selected
+            if (effectType === savedEffect) {
+                card.classList.add('selected');
+            }
+
+            // Handle selection
+            card.querySelector('.select-btn')?.addEventListener('click', () => {
+                // Remove all selections
+                document.querySelectorAll(`.tab-panel[data-panel="${tab}"] .effect-card`).forEach(c => {
+                    c.classList.remove('selected');
+                });
+
+                // Mark this as selected
+                card.classList.add('selected');
+
+                // Save to localStorage
+                effects[tab] = effectType;
+                localStorage.setItem('bomberman_effects', JSON.stringify(effects));
+            });
+        });
+
+        // Setup range sliders
+        this.setupEffectSliders(tab, effects);
+    }
+
+    /**
+     * Setup effect sliders
+     */
+    setupEffectSliders(tab, effects) {
+        // Explosion sliders
+        if (tab === 'explosion') {
+            const sizeSlider = document.getElementById('explosionSize');
+            const sizeValue = document.getElementById('explosionSizeValue');
+            const durationSlider = document.getElementById('explosionDuration');
+            const durationValue = document.getElementById('explosionDurationValue');
+
+            if (sizeSlider && sizeValue) {
+                sizeSlider.value = effects.explosionSize || 100;
+                sizeValue.textContent = `${sizeSlider.value}%`;
+                sizeSlider.addEventListener('input', (e) => {
+                    sizeValue.textContent = `${e.target.value}%`;
+                    effects.explosionSize = parseInt(e.target.value);
+                    localStorage.setItem('bomberman_effects', JSON.stringify(effects));
+                });
+            }
+
+            if (durationSlider && durationValue) {
+                durationSlider.value = effects.explosionDuration || 500;
+                durationValue.textContent = `${durationSlider.value}ms`;
+                durationSlider.addEventListener('input', (e) => {
+                    durationValue.textContent = `${e.target.value}ms`;
+                    effects.explosionDuration = parseInt(e.target.value);
+                    localStorage.setItem('bomberman_effects', JSON.stringify(effects));
+                });
+            }
+        }
+
+        // Trail sliders
+        if (tab === 'trail') {
+            const intensitySlider = document.getElementById('trailIntensity');
+            const intensityValue = document.getElementById('trailIntensityValue');
+            const lifetimeSlider = document.getElementById('trailLifetime');
+            const lifetimeValue = document.getElementById('trailLifetimeValue');
+
+            if (intensitySlider && intensityValue) {
+                intensitySlider.value = effects.trailIntensity || 5;
+                intensityValue.textContent = intensitySlider.value;
+                intensitySlider.addEventListener('input', (e) => {
+                    intensityValue.textContent = e.target.value;
+                    effects.trailIntensity = parseInt(e.target.value);
+                    localStorage.setItem('bomberman_effects', JSON.stringify(effects));
+                });
+            }
+
+            if (lifetimeSlider && lifetimeValue) {
+                lifetimeSlider.value = effects.trailLifetime || 500;
+                lifetimeValue.textContent = `${lifetimeSlider.value}ms`;
+                lifetimeSlider.addEventListener('input', (e) => {
+                    lifetimeValue.textContent = `${e.target.value}ms`;
+                    effects.trailLifetime = parseInt(e.target.value);
+                    localStorage.setItem('bomberman_effects', JSON.stringify(effects));
+                });
+            }
+        }
+
+        // Kill effect options
+        if (tab === 'kill') {
+            const killSound = document.getElementById('killSound');
+            const killText = document.getElementById('killText');
+
+            if (killSound) {
+                killSound.checked = effects.killSound !== false;
+                killSound.addEventListener('change', (e) => {
+                    effects.killSound = e.target.checked;
+                    localStorage.setItem('bomberman_effects', JSON.stringify(effects));
+                });
+            }
+
+            if (killText) {
+                killText.checked = effects.killText !== false;
+                killText.addEventListener('change', (e) => {
+                    effects.killText = e.target.checked;
+                    localStorage.setItem('bomberman_effects', JSON.stringify(effects));
+                });
+            }
+        }
     }
 
     /**
