@@ -28,6 +28,7 @@ import {
 import { signInAnonymously, getAuth } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
 
 const safeObjectValues = (value) => (value && typeof value === 'object') ? Object.values(value) : [];
+const PLAYER_CACHE_KEY_PREFIX = 'bomberman_player_';
 
 /**
  * Network Manager - Handles all Firebase operations
@@ -140,7 +141,12 @@ export class NetworkManager {
                     id: this.userId,
                     username: this.username,
                     ready: false,
-                    colorIndex: 0
+                    colorIndex: 0,
+                    skins: {
+                        character: 'classic',
+                        bomb: 'classic'
+                    },
+                    disconnected: false
                 }
             },
             createdAt: serverTimestamp(),
@@ -151,6 +157,7 @@ export class NetworkManager {
         // Ensure the host player entry is removed on disconnect
         const playerRef = ref(this.database, `rooms/${roomCode}/players/${this.userId}`);
         onDisconnect(playerRef).remove();
+        this.cachePlayerData(roomCode, roomData.players[this.userId]);
         return roomCode;
     }
 
@@ -197,11 +204,23 @@ export class NetworkManager {
             skins: {
                 character: 'classic',
                 bomb: 'classic'
-            }
+            },
+            disconnected: false
         });
 
         // Remove this player entry on disconnect
         onDisconnect(playerRef).remove();
+        this.cachePlayerData(roomCode, {
+            id: this.userId,
+            username: this.username,
+            ready: false,
+            colorIndex: colorIndex,
+            skins: {
+                character: 'classic',
+                bomb: 'classic'
+            },
+            disconnected: false
+        });
 
         return roomData;
     }
@@ -212,6 +231,7 @@ export class NetworkManager {
     async leaveRoom(roomCode) {
         const playerRef = ref(this.database, `rooms/${roomCode}/players/${this.userId}`);
         await remove(playerRef);
+        this.clearCachedPlayerData(roomCode);
         // After removing the player, check room state and cleanup if needed
         const roomRef = ref(this.database, `rooms/${roomCode}`);
         const snapshot = await get(roomRef);
@@ -240,8 +260,10 @@ export class NetworkManager {
 
         if (snapshot.exists()) {
             const playerData = snapshot.val();
-            await update(playerRef, { ready: !playerData.ready });
-            return !playerData.ready;
+            const newReady = !playerData.ready;
+            await update(playerRef, { ready: newReady });
+            this.cachePlayerData(roomCode, { ...playerData, ready: newReady });
+            return newReady;
         }
 
         return false;
@@ -253,6 +275,14 @@ export class NetworkManager {
     async updatePlayerSkins(roomCode, skins) {
         const playerRef = ref(this.database, `rooms/${roomCode}/players/${this.userId}`);
         await update(playerRef, { skins });
+        const cached = this.getCachedPlayerData(roomCode) || {};
+        this.cachePlayerData(roomCode, {
+            ...cached,
+            id: this.userId,
+            username: this.username,
+            skins,
+            disconnected: false
+        });
     }
 
     /**
@@ -645,6 +675,124 @@ export class NetworkManager {
     }
 
     // ==================== UTILITIES ====================
+
+    /**
+     * Cache the local player's room data to survive page reloads
+     */
+    cachePlayerData(roomCode, playerData) {
+        if (typeof localStorage === 'undefined' || !roomCode || !playerData) return;
+        try {
+            const key = `${PLAYER_CACHE_KEY_PREFIX}${roomCode}`;
+            localStorage.setItem(key, JSON.stringify(playerData));
+        } catch (error) {
+            console.warn('Failed to cache player data', error);
+        }
+    }
+
+    /**
+     * Retrieve cached player data for this room
+     */
+    getCachedPlayerData(roomCode) {
+        if (typeof localStorage === 'undefined' || !roomCode) return null;
+        const key = `${PLAYER_CACHE_KEY_PREFIX}${roomCode}`;
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        try {
+            return JSON.parse(raw);
+        } catch (error) {
+            console.warn('Failed to parse cached player data', error);
+            return null;
+        }
+    }
+
+    /**
+     * Clear cached player data
+     */
+    clearCachedPlayerData(roomCode) {
+        if (typeof localStorage === 'undefined' || !roomCode) return;
+        const key = `${PLAYER_CACHE_KEY_PREFIX}${roomCode}`;
+        localStorage.removeItem(key);
+    }
+
+    /**
+     * Ensure the local player entry exists in the room after navigation
+     */
+    async ensurePlayerInRoom(roomCode) {
+        if (!roomCode || !this.userId) return null;
+
+        const playerPath = `rooms/${roomCode}/players/${this.userId}`;
+        const playerRef = ref(this.database, playerPath);
+        const currentSnapshot = await get(playerRef);
+
+        if (currentSnapshot.exists()) {
+            const existingData = currentSnapshot.val();
+            const updates = {};
+            let requiresUpdate = false;
+
+            if (existingData.username !== this.username) {
+                updates.username = this.username;
+                requiresUpdate = true;
+            }
+            if (existingData.disconnected) {
+                updates.disconnected = false;
+                requiresUpdate = true;
+            }
+
+            if (requiresUpdate) {
+                await update(playerRef, updates);
+                Object.assign(existingData, updates);
+            }
+
+            onDisconnect(playerRef).remove();
+            this.cachePlayerData(roomCode, existingData);
+            return existingData;
+        }
+
+        const roomRef = ref(this.database, `rooms/${roomCode}`);
+        const roomSnapshot = await get(roomRef);
+        if (!roomSnapshot.exists()) {
+            throw new Error('Room not found');
+        }
+
+        const roomData = roomSnapshot.val();
+        const players = roomData.players || {};
+        const cachedData = this.getCachedPlayerData(roomCode);
+
+        const usedColors = safeObjectValues(players)
+            .map(p => (p && typeof p.colorIndex === 'number') ? p.colorIndex : null)
+            .filter(color => color !== null);
+
+        let colorIndex = cachedData && typeof cachedData.colorIndex === 'number'
+            ? cachedData.colorIndex
+            : 0;
+
+        if (usedColors.includes(colorIndex)) {
+            for (let i = 0; i < 4; i++) {
+                if (!usedColors.includes(i)) {
+                    colorIndex = i;
+                    break;
+                }
+            }
+        }
+
+        const playerData = {
+            id: this.userId,
+            username: this.username,
+            ready: (cachedData && typeof cachedData.ready === 'boolean') ? cachedData.ready : false,
+            colorIndex,
+            skins: (cachedData && cachedData.skins) || (players[this.userId] && players[this.userId].skins) || {
+                character: 'classic',
+                bomb: 'classic'
+            },
+            disconnected: false
+        };
+
+        await set(playerRef, playerData);
+        onDisconnect(playerRef).remove();
+        this.cachePlayerData(roomCode, playerData);
+
+        return playerData;
+    }
 
     /**
      * Generate random room code

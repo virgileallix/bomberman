@@ -495,6 +495,7 @@ class LobbyManager {
 
             try {
                 await this.network.startGame(this.currentRoomCode);
+                this.storeExpectedPlayers(this.currentRoom);
                 // Redirect to game
                 window.location.href = `game.html?room=${this.currentRoomCode}`;
             } catch (error) {
@@ -533,6 +534,7 @@ class LobbyManager {
 
             // Check if game started
             if (room.status === 'playing') {
+                this.storeExpectedPlayers(room);
                 window.location.href = `game.html?room=${roomCode}`;
             }
         });
@@ -621,6 +623,19 @@ class LobbyManager {
                 readyBtn.textContent = myPlayer.ready ? 'Not Ready' : 'Ready';
                 readyBtn.classList.toggle('ready', myPlayer.ready);
             }
+        }
+    }
+
+    storeExpectedPlayers(room) {
+        if (!room) return;
+        try {
+            const data = {
+                roomCode: this.currentRoomCode || room.code,
+                playerIds: Object.keys(room.players || {})
+            };
+            localStorage.setItem('bomberman_expected_players', JSON.stringify(data));
+        } catch (error) {
+            console.warn('Failed to store expected players', error);
         }
     }
 

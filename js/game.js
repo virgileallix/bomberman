@@ -22,6 +22,7 @@ class GameManager {
         // Local player
         this.localPlayerId = null;
         this.localPlayer = null;
+        this.expectedPlayerIds = [];
 
         // Game settings
         this.gridWidth = 15;
@@ -61,6 +62,18 @@ class GameManager {
             return;
         }
 
+        const expectedPlayersRaw = localStorage.getItem('bomberman_expected_players');
+        if (expectedPlayersRaw) {
+            try {
+                const expectedData = JSON.parse(expectedPlayersRaw);
+                if (expectedData && expectedData.roomCode === this.roomCode && Array.isArray(expectedData.playerIds)) {
+                    this.expectedPlayerIds = expectedData.playerIds;
+                }
+            } catch (error) {
+                console.warn('Failed to parse expected players cache', error);
+            }
+        }
+
         // Wait for Firebase
         await this.waitForFirebase();
 
@@ -68,6 +81,11 @@ class GameManager {
         this.network = new NetworkManager(window.database, window.firestore);
         await this.network.initialize();
         this.localPlayerId = this.network.getUserId();
+        try {
+            await this.network.ensurePlayerInRoom(this.roomCode);
+        } catch (error) {
+            console.error('Failed to ensure room membership', error);
+        }
 
         // Initialize renderer
         const canvas = document.getElementById('gameCanvas');
@@ -175,13 +193,34 @@ class GameManager {
         const gameStatePlayers = (room.gameState && room.gameState.players && typeof room.gameState.players === 'object')
             ? room.gameState.players
             : null;
-        const playersSource = roomPlayers || gameStatePlayers;
-        const playerEntries = playersSource
-            ? Object.entries(playersSource).filter(([, data]) => data && typeof data === 'object')
-            : [];
+        const playersSource = roomPlayers || gameStatePlayers || {};
 
-        if (playerEntries.length === 0) {
+        let playerEntries = Object.entries(playersSource).filter(([, data]) => data && typeof data === 'object');
+
+        if (this.expectedPlayerIds && this.expectedPlayerIds.length > 0) {
+            const missingIds = this.expectedPlayerIds.filter(id => {
+                const playerData = playersSource[id];
+                return !playerData || typeof playerData !== 'object';
+            });
+
+            if (missingIds.length > 0) {
+                console.warn('startGame deferred: waiting for expected players data', { missing: missingIds });
+                if (missingIds.includes(this.localPlayerId)) {
+                    this.network.ensurePlayerInRoom(this.roomCode).catch((error) => {
+                        console.error('Failed to restore local player entry', error);
+                    });
+                }
+                return;
+            }
+
+            playerEntries = this.expectedPlayerIds
+                .map(id => [id, playersSource[id]])
+                .filter(([, data]) => data && typeof data === 'object');
+        } else if (playerEntries.length === 0) {
             console.warn('startGame deferred: waiting for players data');
+            this.network.ensurePlayerInRoom(this.roomCode).catch((error) => {
+                console.error('Failed to restore local player entry', error);
+            });
             return;
         }
 
@@ -240,10 +279,17 @@ class GameManager {
         if (!this.localPlayer) {
             console.warn('startGame deferred: local player data missing');
             this.players.clear();
+            this.network.ensurePlayerInRoom(this.roomCode).catch((error) => {
+                console.error('Failed to re-sync local player entry', error);
+            });
             return;
         }
 
         this.gameRunning = true;
+        if (this.expectedPlayerIds.length === 0) {
+            this.expectedPlayerIds = playerEntries.map(([id]) => id);
+        }
+        localStorage.removeItem('bomberman_expected_players');
 
         // Update HUD
         this.updatePlayersHUD();
