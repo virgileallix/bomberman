@@ -1,6 +1,7 @@
 import { NetworkManager } from './network.js';
 import { AuthManager } from './auth.js';
 import { SkinManager, CHARACTER_SKINS, BOMB_SKINS } from './skins.js';
+import { SkinEditor, PremadeSkins } from './skinEditor.js';
 
 /**
  * Lobby Manager - Handles lobby UI and room management
@@ -10,6 +11,8 @@ class LobbyManager {
         this.auth = null;
         this.network = null;
         this.skinManager = new SkinManager();
+        this.characterEditor = null;
+        this.bombEditor = null;
         this.currentRoom = null;
         this.currentRoomCode = null;
         this.roomListener = null;
@@ -227,6 +230,9 @@ class LobbyManager {
             if (e.key === 'Enter') this.joinRoom();
         });
 
+        // Customize Skins Button
+        document.getElementById('customizeSkinsBtn').addEventListener('click', () => this.openSkinEditor());
+
         // Chat
         document.getElementById('sendChatBtn').addEventListener('click', () => this.sendGlobalChat());
         document.getElementById('chatInput').addEventListener('keypress', (e) => {
@@ -395,6 +401,10 @@ class LobbyManager {
         try {
             await this.network.joinRoom(roomCode);
             this.currentRoomCode = roomCode;
+
+            // Sync custom skins to room
+            await this.syncCustomSkinsToRoom(roomCode);
+
             this.showWaitingRoom(roomCode);
             this.listenToRoom(roomCode);
 
@@ -411,6 +421,24 @@ class LobbyManager {
             }
         } catch (error) {
             this.showError(error.message);
+        }
+    }
+
+    /**
+     * Sync custom skins to room
+     */
+    async syncCustomSkinsToRoom(roomCode) {
+        const customSkins = {
+            character: localStorage.getItem('bomberman_custom_character_skin') || null,
+            bomb: localStorage.getItem('bomberman_custom_bomb_skin') || null
+        };
+
+        if (customSkins.character || customSkins.bomb) {
+            await this.network.updatePlayerSkins(roomCode, {
+                character: 'custom',
+                bomb: 'custom',
+                customData: customSkins
+            });
         }
     }
 
@@ -714,6 +742,288 @@ class LobbyManager {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // ==================== SKIN EDITOR ====================
+
+    /**
+     * Open skin customization modal
+     */
+    openSkinEditor() {
+        const modal = document.getElementById('skinCustomizationModal');
+        modal.classList.remove('hidden');
+
+        // Initialize editors if not done
+        if (!this.characterEditor) {
+            this.initializeSkinEditors();
+        }
+
+        // Load current skins
+        this.loadCurrentSkins();
+    }
+
+    /**
+     * Initialize skin editors
+     */
+    initializeSkinEditors() {
+        // Character editor
+        this.characterEditor = new SkinEditor(
+            'characterCanvas',
+            'characterPreviewCanvas',
+            'characterColorPicker'
+        );
+
+        // Bomb editor
+        this.bombEditor = new SkinEditor(
+            'bombCanvas',
+            'bombPreviewCanvas',
+            'bombColorPicker'
+        );
+
+        // Setup UI event listeners
+        this.setupSkinEditorUI();
+
+        // Load premade skins
+        this.loadPremadeSkins();
+    }
+
+    /**
+     * Setup skin editor UI
+     */
+    setupSkinEditorUI() {
+        // Close button
+        document.getElementById('closeSkinEditor').addEventListener('click', () => {
+            document.getElementById('skinCustomizationModal').classList.add('hidden');
+        });
+
+        // Tabs
+        document.querySelectorAll('.skin-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const targetTab = e.currentTarget.dataset.tab;
+                this.switchSkinTab(targetTab);
+            });
+        });
+
+        // Character tools
+        document.querySelectorAll('#characterEditor .tool-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('#characterEditor .tool-btn').forEach(b => b.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+                this.characterEditor.setTool(e.currentTarget.dataset.tool);
+            });
+        });
+
+        // Bomb tools
+        document.querySelectorAll('#bombEditor .tool-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('#bombEditor .tool-btn').forEach(b => b.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+                this.bombEditor.setTool(e.currentTarget.dataset.tool);
+            });
+        });
+
+        // Color presets - Character
+        document.querySelectorAll('#characterColorPresets .color-preset').forEach(preset => {
+            preset.addEventListener('click', (e) => {
+                const color = e.currentTarget.dataset.color;
+                document.getElementById('characterColorPicker').value = color;
+                this.characterEditor.currentColor = color;
+            });
+        });
+
+        // Color presets - Bomb
+        document.querySelectorAll('#bombColorPresets .color-preset').forEach(preset => {
+            preset.addEventListener('click', (e) => {
+                const color = e.currentTarget.dataset.color;
+                document.getElementById('bombColorPicker').value = color;
+                this.bombEditor.currentColor = color;
+            });
+        });
+
+        // Image upload - Character
+        document.getElementById('characterImageUpload').addEventListener('change', (e) => {
+            this.handleImageUpload(e, this.characterEditor);
+        });
+
+        // Image upload - Bomb
+        document.getElementById('bombImageUpload').addEventListener('change', (e) => {
+            this.handleImageUpload(e, this.bombEditor);
+        });
+
+        // Clear buttons
+        document.getElementById('characterClearBtn').addEventListener('click', () => {
+            this.characterEditor.clear();
+        });
+        document.getElementById('bombClearBtn').addEventListener('click', () => {
+            this.bombEditor.clear();
+        });
+
+        // Export buttons
+        document.getElementById('characterExportBtn').addEventListener('click', () => {
+            this.exportSkin(this.characterEditor, 'character');
+        });
+        document.getElementById('bombExportBtn').addEventListener('click', () => {
+            this.exportSkin(this.bombEditor, 'bomb');
+        });
+
+        // Save buttons
+        document.getElementById('saveCharacterSkin').addEventListener('click', () => {
+            this.saveCustomSkin('character');
+        });
+        document.getElementById('saveBombSkin').addEventListener('click', () => {
+            this.saveCustomSkin('bomb');
+        });
+
+        // Cancel buttons
+        document.getElementById('cancelCharacterSkin').addEventListener('click', () => {
+            this.loadCurrentSkins();
+        });
+        document.getElementById('cancelBombSkin').addEventListener('click', () => {
+            this.loadCurrentSkins();
+        });
+    }
+
+    /**
+     * Switch between character and bomb tabs
+     */
+    switchSkinTab(tab) {
+        // Update tab buttons
+        document.querySelectorAll('.skin-tab').forEach(t => t.classList.remove('active'));
+        document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+
+        // Update content
+        document.getElementById('characterEditor').classList.toggle('hidden', tab !== 'character');
+        document.getElementById('bombEditor').classList.toggle('hidden', tab !== 'bomb');
+    }
+
+    /**
+     * Load premade skins
+     */
+    loadPremadeSkins() {
+        // Character premade skins
+        const characterSkins = PremadeSkins.generateCharacterSkins();
+        const characterGrid = document.getElementById('characterPremadeGrid');
+
+        characterGrid.innerHTML = characterSkins.map((skin, index) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'premade-skin';
+            wrapper.title = skin.name;
+            wrapper.dataset.index = index;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(skin.canvas, 0, 0);
+
+            wrapper.appendChild(canvas);
+
+            wrapper.addEventListener('click', () => {
+                this.characterEditor.loadImage(skin.canvas.toDataURL());
+            });
+
+            return wrapper;
+        }).map(w => w.outerHTML).join('');
+
+        // Re-attach event listeners
+        characterGrid.querySelectorAll('.premade-skin').forEach((skin, index) => {
+            skin.addEventListener('click', () => {
+                this.characterEditor.loadImage(characterSkins[index].canvas.toDataURL());
+            });
+        });
+
+        // Bomb premade skins
+        const bombSkins = PremadeSkins.generateBombSkins();
+        const bombGrid = document.getElementById('bombPremadeGrid');
+
+        bombGrid.innerHTML = bombSkins.map((skin, index) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'premade-skin';
+            wrapper.title = skin.name;
+            wrapper.dataset.index = index;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(skin.canvas, 0, 0);
+
+            wrapper.appendChild(canvas);
+
+            return wrapper;
+        }).map(w => w.outerHTML).join('');
+
+        // Re-attach event listeners
+        bombGrid.querySelectorAll('.premade-skin').forEach((skin, index) => {
+            skin.addEventListener('click', () => {
+                this.bombEditor.loadImage(bombSkins[index].canvas.toDataURL());
+            });
+        });
+    }
+
+    /**
+     * Handle image upload
+     */
+    handleImageUpload(event, editor) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            editor.loadImageData(e.target.result);
+        };
+        reader.readAsDataURL(file);
+    }
+
+    /**
+     * Export skin as PNG
+     */
+    exportSkin(editor, type) {
+        const dataUrl = editor.exportImage();
+        const link = document.createElement('a');
+        link.download = `${type}_skin_${Date.now()}.png`;
+        link.href = dataUrl;
+        link.click();
+    }
+
+    /**
+     * Save custom skin to localStorage
+     */
+    saveCustomSkin(type) {
+        const editor = type === 'character' ? this.characterEditor : this.bombEditor;
+        const dataUrl = editor.exportImage();
+
+        // Store in localStorage
+        localStorage.setItem(`bomberman_custom_${type}_skin`, dataUrl);
+
+        // Update the skin manager (we'll modify it to support custom skins)
+        if (type === 'character') {
+            this.skinManager.selectedCharacterSkin = 'custom';
+        } else {
+            this.skinManager.selectedBombSkin = 'custom';
+        }
+
+        alert(`✅ Skin ${type === 'character' ? 'de personnage' : 'de bombe'} sauvegardé !`);
+
+        // Close modal
+        document.getElementById('skinCustomizationModal').classList.add('hidden');
+    }
+
+    /**
+     * Load current skins into editors
+     */
+    loadCurrentSkins() {
+        // Load character skin
+        const characterSkin = localStorage.getItem('bomberman_custom_character_skin');
+        if (characterSkin && this.characterEditor) {
+            this.characterEditor.loadImageData(characterSkin);
+        }
+
+        // Load bomb skin
+        const bombSkin = localStorage.getItem('bomberman_custom_bomb_skin');
+        if (bombSkin && this.bombEditor) {
+            this.bombEditor.loadImageData(bombSkin);
+        }
     }
 }
 

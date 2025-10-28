@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bomberman Multiplayer - Lobby</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/skin-editor.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -38,6 +39,11 @@
                 <button class="btn btn-primary" id="createRoomBtn">
                     <span class="btn-icon">🎮</span>
                     Create Room
+                </button>
+
+                <button class="btn btn-secondary" id="customizeSkinsBtn">
+                    <span class="btn-icon">🎨</span>
+                    Customize Skins
                 </button>
 
                 <div class="join-room-input">
@@ -146,6 +152,180 @@
                 </div>
 
                 <div id="authError" class="auth-error hidden"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Skin Customization Modal -->
+    <div id="skinCustomizationModal" class="modal hidden">
+        <div class="modal-content skin-editor-modal">
+            <div class="modal-header">
+                <h2>🎨 Personnalisation des Skins</h2>
+                <button class="btn-close" id="closeSkinEditor">✕</button>
+            </div>
+
+            <div class="skin-editor-container">
+                <!-- Tabs -->
+                <div class="skin-tabs">
+                    <button class="skin-tab active" data-tab="character">
+                        <span>👤</span> Personnage
+                    </button>
+                    <button class="skin-tab" data-tab="bomb">
+                        <span>💣</span> Bombe
+                    </button>
+                </div>
+
+                <!-- Character Editor -->
+                <div class="skin-editor-content" id="characterEditor">
+                    <div class="editor-grid">
+                        <!-- Preview -->
+                        <div class="editor-preview-section">
+                            <h3>Aperçu</h3>
+                            <div class="preview-container">
+                                <canvas id="characterPreviewCanvas" width="128" height="128"></canvas>
+                            </div>
+                            <div class="preview-info">
+                                <p>Taille: 32x32 pixels</p>
+                            </div>
+                        </div>
+
+                        <!-- Tools -->
+                        <div class="editor-tools-section">
+                            <h3>Outils</h3>
+
+                            <!-- Premade Skins -->
+                            <div class="premade-skins">
+                                <h4>Skins Préfaits</h4>
+                                <div class="premade-grid" id="characterPremadeGrid">
+                                    <!-- Will be populated by JS -->
+                                </div>
+                            </div>
+
+                            <!-- Drawing Tools -->
+                            <div class="drawing-tools">
+                                <h4>Dessiner</h4>
+                                <div class="tool-buttons">
+                                    <button class="tool-btn active" data-tool="pencil" title="Crayon">✏️</button>
+                                    <button class="tool-btn" data-tool="eraser" title="Gomme">🧹</button>
+                                    <button class="tool-btn" data-tool="fill" title="Remplir">🪣</button>
+                                    <button class="tool-btn" data-tool="picker" title="Pipette">💧</button>
+                                </div>
+                                <div class="color-picker-section">
+                                    <label>Couleur:</label>
+                                    <input type="color" id="characterColorPicker" value="#00f0ff">
+                                    <div class="color-presets" id="characterColorPresets">
+                                        <div class="color-preset" style="background: #00f0ff" data-color="#00f0ff"></div>
+                                        <div class="color-preset" style="background: #ff00ff" data-color="#ff00ff"></div>
+                                        <div class="color-preset" style="background: #ffff00" data-color="#ffff00"></div>
+                                        <div class="color-preset" style="background: #00ff88" data-color="#00ff88"></div>
+                                        <div class="color-preset" style="background: #ff0055" data-color="#ff0055"></div>
+                                        <div class="color-preset" style="background: #ffffff" data-color="#ffffff"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Import/Export -->
+                            <div class="import-export">
+                                <h4>Importer / Exporter</h4>
+                                <label class="file-upload-btn">
+                                    📁 Importer Image
+                                    <input type="file" id="characterImageUpload" accept="image/*" hidden>
+                                </label>
+                                <button class="btn btn-small" id="characterClearBtn">🗑️ Effacer</button>
+                                <button class="btn btn-small" id="characterExportBtn">💾 Télécharger</button>
+                            </div>
+                        </div>
+
+                        <!-- Canvas Editor -->
+                        <div class="editor-canvas-section">
+                            <h3>Éditeur (32x32)</h3>
+                            <div class="canvas-wrapper">
+                                <canvas id="characterCanvas" width="32" height="32"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="editor-actions">
+                        <button class="btn btn-secondary" id="cancelCharacterSkin">Annuler</button>
+                        <button class="btn btn-primary" id="saveCharacterSkin">💾 Sauvegarder</button>
+                    </div>
+                </div>
+
+                <!-- Bomb Editor -->
+                <div class="skin-editor-content hidden" id="bombEditor">
+                    <div class="editor-grid">
+                        <!-- Preview -->
+                        <div class="editor-preview-section">
+                            <h3>Aperçu</h3>
+                            <div class="preview-container">
+                                <canvas id="bombPreviewCanvas" width="128" height="128"></canvas>
+                            </div>
+                            <div class="preview-info">
+                                <p>Taille: 32x32 pixels</p>
+                            </div>
+                        </div>
+
+                        <!-- Tools -->
+                        <div class="editor-tools-section">
+                            <h3>Outils</h3>
+
+                            <!-- Premade Skins -->
+                            <div class="premade-skins">
+                                <h4>Skins Préfaits</h4>
+                                <div class="premade-grid" id="bombPremadeGrid">
+                                    <!-- Will be populated by JS -->
+                                </div>
+                            </div>
+
+                            <!-- Drawing Tools -->
+                            <div class="drawing-tools">
+                                <h4>Dessiner</h4>
+                                <div class="tool-buttons">
+                                    <button class="tool-btn active" data-tool="pencil" title="Crayon">✏️</button>
+                                    <button class="tool-btn" data-tool="eraser" title="Gomme">🧹</button>
+                                    <button class="tool-btn" data-tool="fill" title="Remplir">🪣</button>
+                                    <button class="tool-btn" data-tool="picker" title="Pipette">💧</button>
+                                </div>
+                                <div class="color-picker-section">
+                                    <label>Couleur:</label>
+                                    <input type="color" id="bombColorPicker" value="#000000">
+                                    <div class="color-presets" id="bombColorPresets">
+                                        <div class="color-preset" style="background: #000000" data-color="#000000"></div>
+                                        <div class="color-preset" style="background: #ff0000" data-color="#ff0000"></div>
+                                        <div class="color-preset" style="background: #ff6600" data-color="#ff6600"></div>
+                                        <div class="color-preset" style="background: #ffcc00" data-color="#ffcc00"></div>
+                                        <div class="color-preset" style="background: #808080" data-color="#808080"></div>
+                                        <div class="color-preset" style="background: #ffffff" data-color="#ffffff"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Import/Export -->
+                            <div class="import-export">
+                                <h4>Importer / Exporter</h4>
+                                <label class="file-upload-btn">
+                                    📁 Importer Image
+                                    <input type="file" id="bombImageUpload" accept="image/*" hidden>
+                                </label>
+                                <button class="btn btn-small" id="bombClearBtn">🗑️ Effacer</button>
+                                <button class="btn btn-small" id="bombExportBtn">💾 Télécharger</button>
+                            </div>
+                        </div>
+
+                        <!-- Canvas Editor -->
+                        <div class="editor-canvas-section">
+                            <h3>Éditeur (32x32)</h3>
+                            <div class="canvas-wrapper">
+                                <canvas id="bombCanvas" width="32" height="32"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="editor-actions">
+                        <button class="btn btn-secondary" id="cancelBombSkin">Annuler</button>
+                        <button class="btn btn-primary" id="saveBombSkin">💾 Sauvegarder</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
