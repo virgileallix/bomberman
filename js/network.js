@@ -27,6 +27,8 @@ import {
 
 import { signInAnonymously, getAuth } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
 
+const safeObjectValues = (value) => (value && typeof value === 'object') ? Object.values(value) : [];
+
 /**
  * Network Manager - Handles all Firebase operations
  */
@@ -164,18 +166,19 @@ export class NetworkManager {
         }
 
         const roomData = snapshot.val();
+        const settings = (roomData.settings && typeof roomData.settings === 'object') ? roomData.settings : {};
 
         if (roomData.status !== 'waiting') {
             throw new Error('Game already in progress');
         }
 
         const playerCount = Object.keys(roomData.players || {}).length;
-        if (playerCount >= roomData.settings.maxPlayers) {
+        if (playerCount >= (settings.maxPlayers || 4)) {
             throw new Error('Room is full');
         }
 
         // Find available color index
-        const usedColors = Object.values(roomData.players).map(p => p.colorIndex);
+        const usedColors = safeObjectValues(roomData.players).map(p => p.colorIndex);
         let colorIndex = 0;
         for (let i = 0; i < 4; i++) {
             if (!usedColors.includes(i)) {
@@ -633,7 +636,7 @@ export class NetworkManager {
      * Remove all listeners
      */
     removeAllListeners() {
-        Object.values(this.listeners).forEach(unsubscribe => {
+        safeObjectValues(this.listeners).forEach(unsubscribe => {
             if (typeof unsubscribe === 'function') {
                 unsubscribe();
             }

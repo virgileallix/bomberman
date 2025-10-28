@@ -3,6 +3,8 @@ import { AuthManager } from './auth.js';
 import { SkinManager, CHARACTER_SKINS, BOMB_SKINS } from './skins.js';
 import { SkinEditor, PremadeSkins } from './skinEditor.js';
 
+const safeObjectValues = (value) => (value && typeof value === 'object') ? Object.values(value) : [];
+
 /**
  * Lobby Manager - Handles lobby UI and room management
  */
@@ -475,7 +477,7 @@ class LobbyManager {
 
     async startGame() {
         if (this.currentRoomCode && this.currentRoom) {
-            const players = Object.values(this.currentRoom.players);
+            const players = safeObjectValues(this.currentRoom.players);
 
             // Check minimum 2 players
             if (players.length < 2) {
@@ -560,10 +562,11 @@ class LobbyManager {
     updateWaitingRoom(room) {
         const isHost = room.host === this.network.getUserId();
         const playersGrid = document.getElementById('playersGrid');
+        const playersById = (room.players && typeof room.players === 'object') ? room.players : {};
 
         // Update players
         const playerSlots = Array(4).fill(null);
-        Object.values(room.players).forEach(player => {
+        safeObjectValues(playersById).forEach(player => {
             playerSlots[player.colorIndex] = player;
         });
 
@@ -590,12 +593,14 @@ class LobbyManager {
 
         // Update settings UI
         const settingsDiv = document.getElementById('roomSettings');
+        const settings = (room.settings && typeof room.settings === 'object') ? room.settings : {};
+
         if (isHost) {
             settingsDiv.classList.remove('hidden');
-            document.getElementById('mapSelect').value = room.settings.map || 'medium';
-            document.getElementById('durationSelect').value = room.settings.duration || 300;
-            document.getElementById('powerupDensitySelect').value = room.settings.powerupDensity || 'medium';
-            document.getElementById('powerupsToggle').checked = room.settings.powerups !== false;
+            document.getElementById('mapSelect').value = settings.map || 'medium';
+            document.getElementById('durationSelect').value = settings.duration || 300;
+            document.getElementById('powerupDensitySelect').value = settings.powerupDensity || 'medium';
+            document.getElementById('powerupsToggle').checked = settings.powerups !== false;
         } else {
             settingsDiv.classList.add('hidden');
         }
@@ -611,7 +616,7 @@ class LobbyManager {
             startBtn.classList.add('hidden');
             readyBtn.classList.remove('hidden');
 
-            const myPlayer = room.players[this.network.getUserId()];
+            const myPlayer = playersById[this.network.getUserId()];
             if (myPlayer) {
                 readyBtn.textContent = myPlayer.ready ? 'Not Ready' : 'Ready';
                 readyBtn.classList.toggle('ready', myPlayer.ready);
