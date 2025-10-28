@@ -1072,9 +1072,13 @@ class GameManager {
 
     checkGameEnd() {
         const alivePlayers = Array.from(this.players.values()).filter(p => p.alive);
+        const totalPlayers = this.players.size;
 
-        // End if only one player left or time's up
-        if (alivePlayers.length <= 1) {
+        // Only end game if there are multiple players and only one is left alive
+        // Or if all players are dead
+        if (totalPlayers > 1 && alivePlayers.length <= 1) {
+            setTimeout(() => this.endGame(), 1000);
+        } else if (totalPlayers >= 1 && alivePlayers.length === 0) {
             setTimeout(() => this.endGame(), 1000);
         }
     }
