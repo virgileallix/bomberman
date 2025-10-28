@@ -349,6 +349,9 @@ class GameManager {
                 if (player.id === this.localPlayerId) {
                     this.localPlayer = player;
                     this.recalculateMoveDelay();
+
+                    // Load local player's custom skins from localStorage
+                    this.loadLocalPlayerSkins();
                 }
             });
 
@@ -971,6 +974,16 @@ class GameManager {
                     player.bombRange = playerData.bombRange;
                     player.invincible = playerData.invincible;
                     player.currentEmote = playerData.currentEmote;
+
+                    // Update custom skins if changed
+                    if (playerData.customSkins) {
+                        if (playerData.customSkins.character && playerData.customSkins.character !== player.customSkins.character) {
+                            player.setCustomSkin('character', playerData.customSkins.character);
+                        }
+                        if (playerData.customSkins.bomb && playerData.customSkins.bomb !== player.customSkins.bomb) {
+                            player.setCustomSkin('bomb', playerData.customSkins.bomb);
+                        }
+                    }
                 }
             });
 
@@ -1306,6 +1319,30 @@ class GameManager {
                 this.network.updatePlayerState(this.roomCode, this.localPlayer.serialize())
                     .catch(err => console.error('Failed to sync player state:', err));
             }, this.syncDelay - (now - this.lastSyncTime));
+        }
+    }
+
+    /**
+     * Load local player's custom skins from localStorage
+     */
+    loadLocalPlayerSkins() {
+        if (!this.localPlayer) return;
+
+        const characterSkin = localStorage.getItem('bomberman_custom_character_skin');
+        if (characterSkin) {
+            this.localPlayer.setCustomSkin('character', characterSkin);
+            console.log('✅ Loaded custom character skin for local player');
+        }
+
+        const bombSkin = localStorage.getItem('bomberman_custom_bomb_skin');
+        if (bombSkin) {
+            this.localPlayer.setCustomSkin('bomb', bombSkin);
+            console.log('✅ Loaded custom bomb skin for local player');
+        }
+
+        // Sync to network
+        if (characterSkin || bombSkin) {
+            this.syncLocalPlayerState();
         }
     }
 

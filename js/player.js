@@ -15,6 +15,16 @@ export class Player {
         this.alive = true;
         this.colorIndex = colorIndex;
 
+        // Custom skins
+        this.customSkins = {
+            character: null,  // Base64 image data
+            bomb: null        // Base64 image data
+        };
+        this.skinImages = {
+            character: null,  // HTMLImageElement
+            bomb: null        // HTMLImageElement
+        };
+
         // Player stats
         this.kills = 0;
         this.deaths = 0;
@@ -273,6 +283,29 @@ export class Player {
     }
 
     /**
+     * Set custom skin data and load image
+     */
+    setCustomSkin(type, imageData) {
+        if (!imageData) return;
+
+        this.customSkins[type] = imageData;
+
+        // Load image
+        const img = new Image();
+        img.onload = () => {
+            this.skinImages[type] = img;
+        };
+        img.src = imageData;
+    }
+
+    /**
+     * Check if player has custom skin
+     */
+    hasCustomSkin(type) {
+        return this.skinImages[type] !== null;
+    }
+
+    /**
      * Serialize player data for network
      */
     serialize() {
@@ -298,7 +331,8 @@ export class Player {
             invincible: this.invincible,
             invincibleUntil: this.invincibleUntil,
             currentEmote: this.currentEmote,
-            lastUpdate: this.lastUpdate
+            lastUpdate: this.lastUpdate,
+            customSkins: this.customSkins
         };
     }
 
@@ -315,6 +349,17 @@ export class Player {
         );
 
         Object.assign(player, data);
+
+        // Load custom skins if present
+        if (data.customSkins) {
+            if (data.customSkins.character) {
+                player.setCustomSkin('character', data.customSkins.character);
+            }
+            if (data.customSkins.bomb) {
+                player.setCustomSkin('bomb', data.customSkins.bomb);
+            }
+        }
+
         return player;
     }
 

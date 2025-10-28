@@ -147,6 +147,23 @@ export class Renderer {
     }
 
     /**
+     * Draw default player (fallback when no custom skin)
+     */
+    drawDefaultPlayer(color, size) {
+        // Body
+        this.ctx.fillStyle = color.main;
+        this.ctx.beginPath();
+        this.ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Shine effect
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        this.ctx.beginPath();
+        this.ctx.arc(-size / 6, -size / 6, size / 6, 0, Math.PI * 2);
+        this.ctx.fill();
+    }
+
+    /**
      * Draw a player
      */
     drawPlayer(player) {
@@ -180,25 +197,37 @@ export class Renderer {
             this.ctx.setLineDash([]);
         }
 
-        // Body
-        this.ctx.fillStyle = color.main;
-        this.ctx.beginPath();
-        this.ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
-        this.ctx.fill();
+        // Draw custom skin if available, otherwise default rendering
+        const hasCustomSkin = player.hasCustomSkin('character');
+        if (hasCustomSkin) {
+            const skinImg = player.skinImages.character;
+            if (skinImg && skinImg.complete) {
+                // Draw custom skin centered
+                this.ctx.drawImage(
+                    skinImg,
+                    -size / 2,
+                    -size / 2,
+                    size,
+                    size
+                );
+            } else {
+                // Fallback to default if image not loaded yet
+                this.drawDefaultPlayer(color, size);
+            }
+        } else {
+            // Default player rendering
+            this.drawDefaultPlayer(color, size);
+        }
 
-        // Shine effect
-        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        this.ctx.beginPath();
-        this.ctx.arc(-size / 6, -size / 6, size / 6, 0, Math.PI * 2);
-        this.ctx.fill();
+        // Only draw eyes for default skin (custom skins have their own design)
+        if (!hasCustomSkin || !player.skinImages.character || !player.skinImages.character.complete) {
+            this.ctx.fillStyle = '#000';
+            const eyeOffsetX = player.direction === 'left' ? -4 : player.direction === 'right' ? 4 : 0;
+            const eyeOffsetY = player.direction === 'up' ? -4 : player.direction === 'down' ? 4 : 0;
 
-        // Eyes based on direction
-        this.ctx.fillStyle = '#000';
-        const eyeOffsetX = player.direction === 'left' ? -4 : player.direction === 'right' ? 4 : 0;
-        const eyeOffsetY = player.direction === 'up' ? -4 : player.direction === 'down' ? 4 : 0;
-
-        this.ctx.fillRect(-8 + eyeOffsetX, -4 + eyeOffsetY, 4, 6);
-        this.ctx.fillRect(4 + eyeOffsetX, -4 + eyeOffsetY, 4, 6);
+            this.ctx.fillRect(-8 + eyeOffsetX, -4 + eyeOffsetY, 4, 6);
+            this.ctx.fillRect(4 + eyeOffsetX, -4 + eyeOffsetY, 4, 6);
+        }
 
         // Walking animation
         if (player.moving) {
@@ -224,7 +253,7 @@ export class Renderer {
     /**
      * Draw a bomb
      */
-    drawBomb(bomb) {
+    drawBomb(bomb, ownerPlayer = null) {
         const px = bomb.x * this.tileSize + this.tileSize / 2;
         const py = bomb.y * this.tileSize + this.tileSize / 2;
         const size = this.tileSize * 0.6;
@@ -245,6 +274,24 @@ export class Renderer {
             this.ctx.scale(scale, scale);
         }
 
+        // Draw custom bomb skin if owner has one
+        if (ownerPlayer && ownerPlayer.hasCustomSkin('bomb')) {
+            const skinImg = ownerPlayer.skinImages.bomb;
+            if (skinImg && skinImg.complete) {
+                this.ctx.drawImage(
+                    skinImg,
+                    -size / 2,
+                    -size / 2,
+                    size,
+                    size
+                );
+                this.ctx.restore();
+                this.drawBombTimer(bomb, px, py, size);
+                return;
+            }
+        }
+
+        // Default bomb rendering
         // Bomb body
         this.ctx.fillStyle = '#2a2a4a';
         this.ctx.beginPath();
@@ -280,7 +327,14 @@ export class Renderer {
 
         this.ctx.restore();
 
-        // Timer indicator
+        // Draw timer
+        this.drawBombTimer(bomb, px, py, size);
+    }
+
+    /**
+     * Draw bomb timer indicator
+     */
+    drawBombTimer(bomb, px, py, size) {
         const timePercentage = bomb.getTimePercentage();
         const barWidth = this.tileSize * 0.8;
         const barHeight = 4;
@@ -406,9 +460,13 @@ export class Renderer {
             gameState.powerups.forEach(powerup => this.drawPowerUp(powerup));
         }
 
-        // Draw bombs
+        // Draw bombs (with owner player for custom skins)
         if (gameState.bombs) {
-            gameState.bombs.forEach(bomb => this.drawBomb(bomb));
+            gameState.bombs.forEach(bomb => {
+                // Find the player who owns this bomb
+                const ownerPlayer = gameState.players?.find(p => p.id === bomb.playerId);
+                this.drawBomb(bomb, ownerPlayer);
+            });
         }
 
         // Draw explosions

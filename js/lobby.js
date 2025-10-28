@@ -605,7 +605,6 @@ class LobbyManager {
 
         // Update settings UI
         const settingsDiv = document.getElementById('roomSettings');
-        const settings = (room.settings && typeof room.settings === 'object') ? room.settings : {};
 
         if (isHost) {
             settingsDiv.classList.remove('hidden');
