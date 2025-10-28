@@ -30,6 +30,7 @@ class GameManager {
         this.gameStartTime = null;
         this.gameDuration = 300; // seconds
         this.gameRunning = false;
+        this.isInitializingGame = false;
 
         // Input
         this.keys = {};
@@ -179,7 +180,7 @@ class GameManager {
         });
     }
 
-    startGame(room) {
+    async startGame(room) {
         console.log('Starting game...');
 
         if (!room) {
@@ -189,110 +190,146 @@ class GameManager {
             return;
         }
 
-        const roomPlayers = (room.players && typeof room.players === 'object') ? room.players : null;
-        const gameStatePlayers = (room.gameState && room.gameState.players && typeof room.gameState.players === 'object')
-            ? room.gameState.players
-            : null;
-        const playersSource = roomPlayers || gameStatePlayers || {};
+        if (this.gameRunning || this.isInitializingGame) {
+            return;
+        }
 
-        let playerEntries = Object.entries(playersSource).filter(([, data]) => data && typeof data === 'object');
+        this.isInitializingGame = true;
 
-        if (this.expectedPlayerIds && this.expectedPlayerIds.length > 0) {
-            const missingIds = this.expectedPlayerIds.filter(id => {
-                const playerData = playersSource[id];
-                return !playerData || typeof playerData !== 'object';
-            });
+        try {
+            const isHost = room.host === this.localPlayerId;
+            const settings = (room.settings && typeof room.settings === 'object') ? room.settings : {};
+            const roomPlayers = (room.players && typeof room.players === 'object') ? room.players : null;
+            const gameStatePlayers = (room.gameState && room.gameState.players && typeof room.gameState.players === 'object')
+                ? room.gameState.players
+                : null;
+            const playersSource = roomPlayers || gameStatePlayers || {};
+            const existingGrid = this.normalizeGridLayout(room.gameState && room.gameState.grid);
 
-            if (missingIds.length > 0) {
-                console.warn('startGame deferred: waiting for expected players data', { missing: missingIds });
-                if (missingIds.includes(this.localPlayerId)) {
-                    this.network.ensurePlayerInRoom(this.roomCode).catch((error) => {
-                        console.error('Failed to restore local player entry', error);
-                    });
+            if (!existingGrid) {
+                if (!isHost) {
+                    console.warn('startGame deferred: waiting for host to provide grid layout');
+                    return;
                 }
+
+                this.generateGrid(settings.map);
+                const gridLayoutForNetwork = this.cloneGrid(this.grid);
+                try {
+                    await this.network.updateGrid(this.roomCode, gridLayoutForNetwork);
+                } catch (error) {
+                    console.error('Failed to sync grid layout to network', error);
+                }
+            } else {
+                this.applyGridLayout(existingGrid);
+            }
+
+            let playerEntries = Object.entries(playersSource).filter(([, data]) => data && typeof data === 'object');
+
+            if (this.expectedPlayerIds && this.expectedPlayerIds.length > 0) {
+                const missingIds = this.expectedPlayerIds.filter(id => {
+                    const playerData = playersSource[id];
+                    return !playerData || typeof playerData !== 'object';
+                });
+
+                if (missingIds.length > 0) {
+                    console.warn('startGame deferred: waiting for expected players data', { missing: missingIds });
+                    if (missingIds.includes(this.localPlayerId)) {
+                        this.network.ensurePlayerInRoom(this.roomCode).catch((error) => {
+                            console.error('Failed to restore local player entry', error);
+                        });
+                    }
+                    return;
+                }
+
+                playerEntries = this.expectedPlayerIds
+                    .map(id => [id, playersSource[id]])
+                    .filter(([, data]) => data && typeof data === 'object');
+            } else if (playerEntries.length === 0) {
+                console.warn('startGame deferred: waiting for players data');
+                this.network.ensurePlayerInRoom(this.roomCode).catch((error) => {
+                    console.error('Failed to restore local player entry', error);
+                });
                 return;
             }
 
-            playerEntries = this.expectedPlayerIds
-                .map(id => [id, playersSource[id]])
-                .filter(([, data]) => data && typeof data === 'object');
-        } else if (playerEntries.length === 0) {
-            console.warn('startGame deferred: waiting for players data');
-            this.network.ensurePlayerInRoom(this.roomCode).catch((error) => {
-                console.error('Failed to restore local player entry', error);
-            });
-            return;
-        }
+            this.gameDuration = settings.duration || this.gameDuration;
+            this.gameStartTime = Date.now();
 
-        const settings = (room.settings && typeof room.settings === 'object') ? room.settings : {};
+            // Store settings
+            this.powerupsEnabled = settings.powerups !== false;
+            this.powerupDensity = settings.powerupDensity || 'medium';
 
-        this.gameDuration = settings.duration || this.gameDuration;
-        this.gameStartTime = Date.now();
-
-        // Store settings
-        this.powerupsEnabled = settings.powerups !== false;
-        this.powerupDensity = settings.powerupDensity || 'medium';
-
-        // Generate grid
-        this.generateGrid(settings.map);
-
-        // Reset state before populating
-        this.players.clear();
-        this.bombs.clear();
-        this.explosions = [];
-        this.powerups.clear();
-        this.localPlayer = null;
-
-        // Initialize players
-        const spawnPoints = this.getSpawnPoints();
-
-        playerEntries.forEach(([id, playerData], index) => {
-            const spawn = spawnPoints[index % spawnPoints.length] || spawnPoints[0] || { x: 1, y: 1 };
-            const stateData = (gameStatePlayers && typeof gameStatePlayers === 'object') ? gameStatePlayers[id] : null;
-            const startGridX = (stateData && typeof stateData.gridX === 'number')
-                ? stateData.gridX
-                : (typeof playerData.gridX === 'number' ? playerData.gridX : spawn.x);
-            const startGridY = (stateData && typeof stateData.gridY === 'number')
-                ? stateData.gridY
-                : (typeof playerData.gridY === 'number' ? playerData.gridY : spawn.y);
-            const player = new Player(
-                playerData.id || id,
-                playerData.username || `Player ${index + 1}`,
-                startGridX,
-                startGridY,
-                typeof playerData.colorIndex === 'number' ? playerData.colorIndex : index
-            );
-
-            if (stateData) {
-                Object.assign(player, stateData);
-                player.targetX = stateData.x ?? player.targetX;
-                player.targetY = stateData.y ?? player.targetY;
+            // Ensure grid is generated (host already generated above if needed)
+            if (!this.grid || this.grid.length === 0) {
+                this.generateGrid(settings.map);
             }
 
-            this.players.set(player.id, player);
-
-            if (player.id === this.localPlayerId) {
-                this.localPlayer = player;
-            }
-        });
-
-        if (!this.localPlayer) {
-            console.warn('startGame deferred: local player data missing');
+            // Reset state before populating
             this.players.clear();
-            this.network.ensurePlayerInRoom(this.roomCode).catch((error) => {
-                console.error('Failed to re-sync local player entry', error);
+            this.bombs.clear();
+            this.explosions = [];
+            this.powerups.clear();
+            this.localPlayer = null;
+
+            // Initialize players
+            const spawnPoints = this.getSpawnPoints();
+
+            playerEntries.forEach(([id, playerData], index) => {
+                const spawn = spawnPoints[index % spawnPoints.length] || spawnPoints[0] || { x: 1, y: 1 };
+                const stateData = (gameStatePlayers && typeof gameStatePlayers === 'object') ? gameStatePlayers[id] : null;
+                const startGridX = (stateData && typeof stateData.gridX === 'number')
+                    ? stateData.gridX
+                    : (typeof playerData.gridX === 'number' ? playerData.gridX : spawn.x);
+                const startGridY = (stateData && typeof stateData.gridY === 'number')
+                    ? stateData.gridY
+                    : (typeof playerData.gridY === 'number' ? playerData.gridY : spawn.y);
+                const player = new Player(
+                    playerData.id || id,
+                    playerData.username || `Player ${index + 1}`,
+                    startGridX,
+                    startGridY,
+                    typeof playerData.colorIndex === 'number' ? playerData.colorIndex : index
+                );
+
+                if (stateData) {
+                    Object.assign(player, stateData);
+                    player.targetX = stateData.x ?? player.targetX;
+                    player.targetY = stateData.y ?? player.targetY;
+                }
+
+                this.players.set(player.id, player);
+
+                if (player.id === this.localPlayerId) {
+                    this.localPlayer = player;
+                }
             });
-            return;
-        }
 
-        this.gameRunning = true;
-        if (this.expectedPlayerIds.length === 0) {
-            this.expectedPlayerIds = playerEntries.map(([id]) => id);
-        }
-        localStorage.removeItem('bomberman_expected_players');
+            if (!this.localPlayer) {
+                console.warn('startGame deferred: local player data missing');
+                this.players.clear();
+                this.network.ensurePlayerInRoom(this.roomCode).catch((error) => {
+                    console.error('Failed to re-sync local player entry', error);
+                });
+                return;
+            }
 
-        // Update HUD
-        this.updatePlayersHUD();
+            try {
+                await this.network.updatePlayerState(this.roomCode, this.localPlayer.serialize());
+            } catch (error) {
+                console.error('Failed to push initial player state', error);
+            }
+
+            this.gameRunning = true;
+            if (this.expectedPlayerIds.length === 0) {
+                this.expectedPlayerIds = playerEntries.map(([id]) => id);
+            }
+            localStorage.removeItem('bomberman_expected_players');
+
+            // Update HUD
+            this.updatePlayersHUD();
+        } finally {
+            this.isInitializingGame = false;
+        }
     }
 
     generateGrid(mapType) {
@@ -351,6 +388,59 @@ class GameManager {
                 }
             }
         }
+
+        this.updateRendererDimensions();
+        return this.cloneGrid(this.grid);
+    }
+
+    normalizeGridLayout(layout) {
+        if (!layout) return null;
+
+        const rows = Array.isArray(layout)
+            ? layout
+            : Object.keys(layout)
+                .sort((a, b) => Number(a) - Number(b))
+                .map(key => layout[key]);
+
+        const normalized = rows.map(row => {
+            if (Array.isArray(row)) {
+                return row.map(value => Number(value ?? 0));
+            }
+
+            if (row && typeof row === 'object') {
+                return Object.keys(row)
+                    .sort((a, b) => Number(a) - Number(b))
+                    .map(key => Number(row[key] ?? 0));
+            }
+
+            return [];
+        });
+
+        return normalized.every(row => row.length > 0) ? normalized : null;
+    }
+
+    applyGridLayout(layout) {
+        const normalized = this.normalizeGridLayout(layout);
+        if (!normalized || !normalized.length) return false;
+
+        this.gridHeight = normalized.length;
+        this.gridWidth = normalized[0]?.length || 0;
+        this.grid = normalized.map(row => row.slice());
+        this.updateRendererDimensions();
+        return true;
+    }
+
+    cloneGrid(grid) {
+        if (!Array.isArray(grid)) return [];
+        return grid.map(row => Array.isArray(row) ? row.slice() : []);
+    }
+
+    updateRendererDimensions() {
+        if (!this.renderer) return;
+        this.renderer.gridWidth = this.gridWidth;
+        this.renderer.gridHeight = this.gridHeight;
+        this.renderer.canvas.width = this.gridWidth * this.renderer.tileSize;
+        this.renderer.canvas.height = this.gridHeight * this.renderer.tileSize;
     }
 
     getSpawnPoints() {
@@ -650,6 +740,10 @@ class GameManager {
     }
 
     syncGameState(gameState) {
+        if (gameState.grid && (!this.grid || this.grid.length === 0)) {
+            this.applyGridLayout(gameState.grid);
+        }
+
         // Sync players from network (except local player)
         if (gameState.players) {
             Object.entries(gameState.players).forEach(([id, playerData]) => {
@@ -698,7 +792,8 @@ class GameManager {
 
             // Add or update bombs from server
             Object.entries(gameState.bombs).forEach(([id, bombData]) => {
-                if (!this.bombs.has(id)) {
+                const existing = this.bombs.get(id);
+                if (!existing) {
                     const bomb = Bomb.deserialize(bombData);
                     this.bombs.set(id, bomb);
                     const gridY = Math.round(bomb.y);
@@ -706,6 +801,29 @@ class GameManager {
                     if (this.grid[gridY] && this.grid[gridY][gridX] !== undefined) {
                         this.grid[gridY][gridX] = 3;
                     }
+                    return;
+                }
+
+                const prevGridX = Math.round(existing.x);
+                const prevGridY = Math.round(existing.y);
+                existing.x = bombData.x;
+                existing.y = bombData.y;
+                existing.range = bombData.range;
+                existing.timer = bombData.timer;
+                existing.planted = bombData.planted;
+                existing.isMoving = bombData.isMoving;
+                existing.moveDirection = bombData.moveDirection;
+
+                const newGridX = Math.round(existing.x);
+                const newGridY = Math.round(existing.y);
+
+                if (this.grid[prevGridY] && this.grid[prevGridY][prevGridX] === 3 &&
+                    (prevGridX !== newGridX || prevGridY !== newGridY)) {
+                    this.grid[prevGridY][prevGridX] = 0;
+                }
+
+                if (this.grid[newGridY] && this.grid[newGridY][newGridX] !== undefined) {
+                    this.grid[newGridY][newGridX] = 3;
                 }
             });
         }
