@@ -134,7 +134,7 @@ export class NetworkManager {
                 duration: settings.duration || 300,
                 powerupDensity: settings.powerupDensity || 'medium',
                 powerups: settings.powerups !== false,
-                maxPlayers: 4
+                maxPlayers: settings.maxPlayers || 10 // Support 2-10 players
             },
             players: {
                 [this.userId]: {
@@ -180,8 +180,13 @@ export class NetworkManager {
         }
 
         const playerCount = Object.keys(roomData.players || {}).length;
-        if (playerCount >= (settings.maxPlayers || 4)) {
+        if (playerCount >= (settings.maxPlayers || 10)) {
             throw new Error('Room is full');
+        }
+
+        // Minimum 2 players check will be done at game start
+        if (playerCount >= 10) {
+            throw new Error('Maximum 10 players allowed');
         }
 
         // Find available color index

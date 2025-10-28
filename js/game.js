@@ -186,20 +186,22 @@ class GameManager {
     }
 
     async startGame(room) {
-        console.log('Starting game...');
+        console.log('🎮 Starting game...');
 
         if (!room) {
-            console.warn('startGame aborted: room data missing');
+            console.warn('❌ startGame aborted: room data missing');
             alert('La salle est invalide. Retour au lobby.');
             window.location.href = 'index.html';
             return;
         }
 
         if (this.gameRunning || this.isInitializingGame) {
+            console.log('⚠️ Game already running or initializing, skipping startGame');
             return;
         }
 
         this.isInitializingGame = true;
+        console.log('🔧 Initializing game...');
 
         try {
             const isHost = room.host === this.localPlayerId;
@@ -258,6 +260,20 @@ class GameManager {
                 return;
             }
 
+            // Validate player count (2-10 players required)
+            if (playerEntries.length < 2) {
+                console.error('❌ Cannot start game: minimum 2 players required');
+                alert('Le jeu nécessite au moins 2 joueurs pour commencer !');
+                return;
+            }
+
+            if (playerEntries.length > 10) {
+                console.warn('⚠️ Too many players, limiting to 10');
+                playerEntries = playerEntries.slice(0, 10);
+            }
+
+            console.log(`✅ Starting game with ${playerEntries.length} players (valid range: 2-10)`);
+
             this.gameDuration = settings.duration || this.gameDuration;
             this.gameStartTime = Date.now();
 
@@ -281,16 +297,26 @@ class GameManager {
 
             // Initialize players
             const spawnPoints = this.getSpawnPoints();
+            console.log(`👥 Initializing ${playerEntries.length} players with spawn points:`, spawnPoints);
 
             playerEntries.forEach(([id, playerData], index) => {
+                // ALWAYS use spawn points for initial game start
+                // Each player gets a unique spawn point based on their index
                 const spawn = spawnPoints[index % spawnPoints.length] || spawnPoints[0] || { x: 1, y: 1 };
+                console.log(`  Player ${index} (${playerData.username}): spawn at (${spawn.x}, ${spawn.y})`);
+
+                // Only use existing state data if the game is already running (reconnection case)
+                // Otherwise, force spawn points for fair game start
+                let startGridX = spawn.x;
+                let startGridY = spawn.y;
+
+                // Only restore position if game was already running and player is reconnecting
                 const stateData = (gameStatePlayers && typeof gameStatePlayers === 'object') ? gameStatePlayers[id] : null;
-                const startGridX = (stateData && typeof stateData.gridX === 'number')
-                    ? stateData.gridX
-                    : (typeof playerData.gridX === 'number' ? playerData.gridX : spawn.x);
-                const startGridY = (stateData && typeof stateData.gridY === 'number')
-                    ? stateData.gridY
-                    : (typeof playerData.gridY === 'number' ? playerData.gridY : spawn.y);
+                if (stateData && this.gameRunning) {
+                    startGridX = stateData.gridX ?? spawn.x;
+                    startGridY = stateData.gridY ?? spawn.y;
+                }
+
                 const player = new Player(
                     playerData.id || id,
                     playerData.username || `Player ${index + 1}`,
@@ -299,16 +325,24 @@ class GameManager {
                     typeof playerData.colorIndex === 'number' ? playerData.colorIndex : index
                 );
 
-                if (stateData) {
-                    Object.assign(player, stateData);
-                    player.targetX = stateData.x ?? player.targetX;
-                    player.targetY = stateData.y ?? player.targetY;
+                // Only restore state for reconnecting players, not fresh game starts
+                if (stateData && this.gameRunning) {
+                    player.alive = stateData.alive ?? true;
+                    player.kills = stateData.kills ?? 0;
+                    player.deaths = stateData.deaths ?? 0;
+                    player.speed = stateData.speed ?? 2;
+                    player.maxBombs = stateData.maxBombs ?? 1;
+                    player.bombRange = stateData.bombRange ?? 2;
+                    player.canKickBombs = stateData.canKickBombs ?? false;
+                    player.targetX = stateData.x ?? player.x;
+                    player.targetY = stateData.y ?? player.y;
+                } else {
+                    // Fresh game start - reset everything
+                    player.reset(startGridX, startGridY);
+                    player.alive = true;
+                    player.kills = 0;
+                    player.deaths = 0;
                 }
-
-                player.reset(startGridX, startGridY);
-                player.alive = true;
-                player.kills = 0;
-                player.deaths = 0;
 
                 this.players.set(player.id, player);
 
@@ -334,6 +368,13 @@ class GameManager {
             }
 
             this.gameRunning = true;
+            console.log(`✅ Game initialized successfully with ${this.players.size} players`);
+            console.log(`📊 Players:`, Array.from(this.players.values()).map(p => ({
+                name: p.username,
+                position: `(${p.gridX}, ${p.gridY})`,
+                alive: p.alive
+            })));
+
             if (this.expectedPlayerIds.length === 0) {
                 this.expectedPlayerIds = playerEntries.map(([id]) => id);
             }
@@ -467,13 +508,27 @@ class GameManager {
     }
 
     getSpawnPoints() {
-        // Corner spawn points
-        return [
-            { x: 1, y: 1 },           // Top-left
-            { x: this.gridWidth - 2, y: 1 },           // Top-right
-            { x: 1, y: this.gridHeight - 2 },          // Bottom-left
-            { x: this.gridWidth - 2, y: this.gridHeight - 2 }  // Bottom-right
+        // Spawn points for up to 10 players
+        // Priority: corners first, then edges, then strategic positions
+        const spawnPoints = [
+            // 4 corners (players 1-4)
+            { x: 1, y: 1 },                                          // Top-left
+            { x: this.gridWidth - 2, y: 1 },                         // Top-right
+            { x: 1, y: this.gridHeight - 2 },                        // Bottom-left
+            { x: this.gridWidth - 2, y: this.gridHeight - 2 },       // Bottom-right
+
+            // 4 edges midpoints (players 5-8)
+            { x: Math.floor(this.gridWidth / 2), y: 1 },             // Top-center
+            { x: Math.floor(this.gridWidth / 2), y: this.gridHeight - 2 }, // Bottom-center
+            { x: 1, y: Math.floor(this.gridHeight / 2) },            // Left-center
+            { x: this.gridWidth - 2, y: Math.floor(this.gridHeight / 2) }, // Right-center
+
+            // 2 additional strategic positions (players 9-10)
+            { x: Math.floor(this.gridWidth / 4), y: Math.floor(this.gridHeight / 4) },
+            { x: Math.floor(3 * this.gridWidth / 4), y: Math.floor(3 * this.gridHeight / 4) }
         ];
+
+        return spawnPoints;
     }
 
     setupInput() {
@@ -1071,14 +1126,27 @@ class GameManager {
     }
 
     checkGameEnd() {
+        if (!this.gameRunning) return;
+
         const alivePlayers = Array.from(this.players.values()).filter(p => p.alive);
         const totalPlayers = this.players.size;
 
-        // Only end game if there are multiple players and only one is left alive
-        // Or if all players are dead
-        if (totalPlayers > 1 && alivePlayers.length <= 1) {
-            setTimeout(() => this.endGame(), 1000);
-        } else if (totalPlayers >= 1 && alivePlayers.length === 0) {
+        console.log(`🏁 Checking game end: ${alivePlayers.length}/${totalPlayers} players alive`);
+
+        // Game end conditions:
+        // - Game requires 2-10 players
+        // - Game ends when only 1 or 0 players remain alive
+        // - Last player standing wins
+
+        if (totalPlayers < 2) {
+            console.error('❌ Invalid game state: less than 2 players');
+            this.endGame();
+            return;
+        }
+
+        // End game when only one winner remains
+        if (alivePlayers.length <= 1) {
+            console.log('🏆 Game ending: winner determined (1 or 0 players left)');
             setTimeout(() => this.endGame(), 1000);
         }
     }

@@ -44,12 +44,18 @@ export class Player {
         this.currentEmote = null;
         this.emoteTimer = 0;
 
-        // Colors for different players
+        // Colors for up to 10 different players
         this.colors = [
-            { main: '#00f0ff', secondary: '#0080ff', name: 'Cyan' },
-            { main: '#ff00ff', secondary: '#ff0080', name: 'Magenta' },
-            { main: '#ffff00', secondary: '#ff8800', name: 'Yellow' },
-            { main: '#00ff88', secondary: '#00ff00', name: 'Green' }
+            { main: '#00f0ff', secondary: '#0080ff', name: 'Cyan' },      // Player 1
+            { main: '#ff00ff', secondary: '#ff0080', name: 'Magenta' },   // Player 2
+            { main: '#ffff00', secondary: '#ff8800', name: 'Yellow' },    // Player 3
+            { main: '#00ff88', secondary: '#00ff00', name: 'Green' },     // Player 4
+            { main: '#ff4444', secondary: '#cc0000', name: 'Red' },       // Player 5
+            { main: '#4444ff', secondary: '#0000cc', name: 'Blue' },      // Player 6
+            { main: '#ff8844', secondary: '#ff5500', name: 'Orange' },    // Player 7
+            { main: '#ff44ff', secondary: '#cc00cc', name: 'Pink' },      // Player 8
+            { main: '#44ffff', secondary: '#00cccc', name: 'Aqua' },      // Player 9
+            { main: '#88ff44', secondary: '#55cc00', name: 'Lime' }       // Player 10
         ];
     }
 

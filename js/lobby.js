@@ -256,6 +256,7 @@ class LobbyManager {
         });
 
         // Settings (host only)
+        document.getElementById('maxPlayersSelect').addEventListener('change', () => this.updateSettings());
         document.getElementById('mapSelect').addEventListener('change', () => this.updateSettings());
         document.getElementById('durationSelect').addEventListener('change', () => this.updateSettings());
         document.getElementById('powerupDensitySelect').addEventListener('change', () => this.updateSettings());
@@ -384,7 +385,11 @@ class LobbyManager {
 
     async createRoom() {
         try {
-            const roomCode = await this.network.createRoom();
+            // Get default settings (maxPlayers will be set in waiting room)
+            const settings = {
+                maxPlayers: 10 // Default max, can be changed in room settings
+            };
+            const roomCode = await this.network.createRoom(settings);
             this.currentRoomCode = roomCode;
             this.showWaitingRoom(roomCode);
             this.listenToRoom(roomCode);
@@ -507,6 +512,7 @@ class LobbyManager {
     async updateSettings() {
         if (this.currentRoomCode && this.currentRoom?.host === this.network.getUserId()) {
             const settings = {
+                maxPlayers: parseInt(document.getElementById('maxPlayersSelect').value),
                 map: document.getElementById('mapSelect').value,
                 duration: parseInt(document.getElementById('durationSelect').value),
                 powerupDensity: document.getElementById('powerupDensitySelect').value,
@@ -565,11 +571,15 @@ class LobbyManager {
         const isHost = room.host === this.network.getUserId();
         const playersGrid = document.getElementById('playersGrid');
         const playersById = (room.players && typeof room.players === 'object') ? room.players : {};
+        const settings = (room.settings && typeof room.settings === 'object') ? room.settings : {};
+        const maxPlayers = settings.maxPlayers || 10;
 
-        // Update players
-        const playerSlots = Array(4).fill(null);
+        // Update players - show slots based on maxPlayers setting
+        const playerSlots = Array(maxPlayers).fill(null);
         safeObjectValues(playersById).forEach(player => {
-            playerSlots[player.colorIndex] = player;
+            if (player.colorIndex < maxPlayers) {
+                playerSlots[player.colorIndex] = player;
+            }
         });
 
         playersGrid.innerHTML = playerSlots.map((player, index) => {
@@ -599,6 +609,7 @@ class LobbyManager {
 
         if (isHost) {
             settingsDiv.classList.remove('hidden');
+            document.getElementById('maxPlayersSelect').value = settings.maxPlayers || 10;
             document.getElementById('mapSelect').value = settings.map || 'medium';
             document.getElementById('durationSelect').value = settings.duration || 300;
             document.getElementById('powerupDensitySelect').value = settings.powerupDensity || 'medium';
