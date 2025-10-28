@@ -165,7 +165,16 @@ class GameManager {
         console.log('Starting game...');
 
         this.gameRunning = true;
-        this.gameDuration = room.settings.duration;
+        // Defensive checks: room.players or room.settings might be missing if data is inconsistent
+        const playerList = Object.values(room.players || {});
+        if (playerList.length === 0) {
+            console.warn('startGame aborted: no players in room', room);
+            alert('La salle est invalide ou ne contient aucun joueur. Retour au lobby.');
+            window.location.href = 'index.html';
+            return;
+        }
+
+        this.gameDuration = (room.settings && room.settings.duration) || this.gameDuration;
         this.gameStartTime = Date.now();
 
         // Store settings
@@ -176,7 +185,7 @@ class GameManager {
         this.generateGrid(room.settings.map);
 
         // Initialize players
-        const playerList = Object.values(room.players);
+    // const playerList already resolved above
         const spawnPoints = this.getSpawnPoints();
 
         playerList.forEach((playerData, index) => {
