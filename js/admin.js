@@ -283,15 +283,52 @@ export class ModerationManager {
     }
 
     /**
-     * Traiter une commande admin
+     * Supprimer un message spécifique
      */
-    processAdminCommand(command, args, roomCode) {
-        if (!this.isAdmin) {
-            return null;
+    async deleteChatMessage(roomCode, messageId) {
+        try {
+            await this.network.deleteChatMessage(roomCode, messageId);
+            console.log(`🗑️ Message ${messageId} supprimé`);
+            return true;
+        } catch (error) {
+            console.error('Erreur lors de la suppression du message:', error);
+            return false;
         }
+    }
 
-        switch (command) {
+    /**
+     * Clear le chat global (admins uniquement)
+     */
+    async clearGlobalChat() {
+        if (!this.isAdmin) {
+            throw new Error('Seuls les admins peuvent gérer le chat global');
+        }
+        return this.clearChat(null);
+    }
+
+    /**
+     * Supprimer un message du chat global (admins uniquement)
+     */
+    async deleteGlobalMessage(messageId) {
+        if (!this.isAdmin) {
+            throw new Error('Seuls les admins peuvent gérer le chat global');
+        }
+        return this.deleteChatMessage(null, messageId);
+    }
+
+    /**
+     * Traiter une commande de modération
+     */
+    processModerationCommand(command, args, roomCode, options = {}) {
+        const normalizedCommand = (command || '').toLowerCase();
+        const { isHost = false } = options;
+        const canModerateRoom = isHost || this.isAdmin;
+
+        switch (normalizedCommand) {
             case 'mute':
+                if (!canModerateRoom) {
+                    return 'Seul l\'hôte peut utiliser cette commande';
+                }
                 if (args.length >= 1) {
                     const username = args[0];
                     const duration = args[1] ? parseInt(args[1]) * 1000 : 60000;
@@ -301,6 +338,9 @@ export class ModerationManager {
                 return 'Usage: /mute <username> [durée en secondes]';
 
             case 'unmute':
+                if (!canModerateRoom) {
+                    return 'Seul l\'hôte peut utiliser cette commande';
+                }
                 if (args.length >= 1) {
                     const username = args[0];
                     return { action: 'unmute', username };
@@ -308,6 +348,9 @@ export class ModerationManager {
                 return 'Usage: /unmute <username>';
 
             case 'kick':
+                if (!canModerateRoom) {
+                    return 'Seul l\'hôte peut utiliser cette commande';
+                }
                 if (args.length >= 1) {
                     const username = args[0];
                     return { action: 'kick', username };
@@ -315,6 +358,9 @@ export class ModerationManager {
                 return 'Usage: /kick <username>';
 
             case 'ban':
+                if (!canModerateRoom) {
+                    return 'Seul l\'hôte peut utiliser cette commande';
+                }
                 if (args.length >= 1) {
                     const username = args[0];
                     return { action: 'ban', username };
@@ -322,6 +368,9 @@ export class ModerationManager {
                 return 'Usage: /ban <username>';
 
             case 'clear':
+                if (!canModerateRoom) {
+                    return 'Seul l\'hôte peut utiliser cette commande';
+                }
                 return { action: 'clear' };
 
             default:

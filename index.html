@@ -32,6 +32,9 @@
                     </div>
                 </div>
             </div>
+            <div class="admin-shortcuts hidden" id="adminShortcuts">
+                <button class="btn btn-small btn-secondary" id="openAdminPageBtn">🔧 Admin Dashboard</button>
+            </div>
         </div>
 
         <!-- Main Lobby -->
@@ -70,6 +73,9 @@
             <!-- Global Chat -->
             <div class="chat-section">
                 <h3 class="section-title">💬 Global Chat</h3>
+                <div class="chat-moderation hidden" id="globalChatModeration">
+                    <button class="btn btn-small btn-danger" id="globalClearChat">🧹 Clear Global Chat</button>
+                </div>
                 <div class="chat-messages" id="globalChat"></div>
                 <div class="chat-input">
                     <input type="text" id="chatInput" placeholder="Type a message..." maxlength="100">
@@ -676,26 +682,26 @@
                 </div>
             </div>
 
-            <!-- Admin Panel -->
-            <div class="admin-panel hidden" id="adminPanel">
-                <h3>👑 Panneau Admin</h3>
-                <div class="admin-controls">
-                    <div class="admin-section">
+            <!-- Host Panel -->
+            <div class="host-panel hidden" id="hostPanel">
+                <h3>👑 Panneau Hôte</h3>
+                <div class="host-controls">
+                    <div class="host-section">
                         <h4>Commandes rapides</h4>
-                        <button class="btn btn-small btn-danger" id="adminClearChat">🧹 Clear Chat</button>
+                        <button class="btn btn-small btn-danger" id="hostClearChat">🧹 Clear Chat</button>
                     </div>
-                    <div class="admin-section">
+                    <div class="host-section">
                         <h4>Modération</h4>
-                        <div class="admin-input-group">
-                            <input type="text" id="adminTargetUser" placeholder="Nom du joueur" class="admin-input">
-                            <button class="btn btn-small btn-warning" id="adminMuteBtn">🔇 Mute (60s)</button>
-                            <button class="btn btn-small btn-warning" id="adminKickBtn">👢 Kick</button>
-                            <button class="btn btn-small btn-danger" id="adminBanBtn">🚫 Ban</button>
+                        <div class="host-input-group">
+                            <input type="text" id="hostTargetUser" placeholder="Nom du joueur" class="host-input">
+                            <button class="btn btn-small btn-warning" id="hostMuteBtn">🔇 Mute (60s)</button>
+                            <button class="btn btn-small btn-warning" id="hostKickBtn">👢 Kick</button>
+                            <button class="btn btn-small btn-danger" id="hostBanBtn">🚫 Ban</button>
                         </div>
                     </div>
-                    <div class="admin-section">
+                    <div class="host-section">
                         <h4>Commandes chat</h4>
-                        <p class="admin-hint">Tapez dans le chat:</p>
+                        <p class="host-hint">Tapez dans le chat:</p>
                         <code>/mute &lt;user&gt; [durée]</code>
                         <code>/unmute &lt;user&gt;</code>
                         <code>/kick &lt;user&gt;</code>

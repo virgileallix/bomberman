@@ -22,6 +22,12 @@ class LobbyManager {
         this.roomListener = null;
         this.chatListener = null;
         this.isLoginMode = true;
+        this.hostControlsInitialized = false;
+        this.isCurrentRoomHost = false;
+        this.isAdmin = false;
+        this.globalChatModerationInitialized = false;
+        this.globalChatMessages = [];
+        this.adminShortcutInitialized = false;
 
         this.init();
     }
@@ -161,11 +167,14 @@ class LobbyManager {
             // Initialize moderation system
             this.moderation = new ModerationManager(this.network, this.network.getUserId());
 
-            // Wait for admin check to complete, then show admin panel if user is admin
+            // Setup host moderation controls
+            this.setupHostControls();
+
+            // Wait for admin check before enabling admin-specific features
             this.moderation.waitForAdminCheck().then(isAdmin => {
+                this.isAdmin = isAdmin;
                 if (isAdmin) {
-                    document.getElementById('adminPanel').classList.remove('hidden');
-                    this.setupAdminControls();
+                    this.initializeAdminFeatures();
                 }
             });
         }
@@ -373,15 +382,40 @@ class LobbyManager {
 
     setupGlobalChat() {
         this.network.listenToChat(null, (messages) => {
-            const chatDiv = document.getElementById('globalChat');
-            chatDiv.innerHTML = messages.slice(-50).map(msg => `
-                <div class="chat-message">
-                    <span class="chat-user">${msg.user}:</span>
-                    <span class="chat-text">${this.escapeHtml(msg.message)}</span>
-                </div>
-            `).join('');
-            chatDiv.scrollTop = chatDiv.scrollHeight;
+            this.globalChatMessages = messages.slice(-50);
+            this.renderGlobalChatMessages();
         });
+    }
+
+    renderGlobalChatMessages() {
+        const chatDiv = document.getElementById('globalChat');
+        if (!chatDiv) {
+            return;
+        }
+
+        chatDiv.innerHTML = this.globalChatMessages.map(msg => this.buildGlobalChatMessage(msg)).join('');
+        chatDiv.scrollTop = chatDiv.scrollHeight;
+    }
+
+    buildGlobalChatMessage(msg) {
+        const safeUser = this.escapeHtml(msg.user || 'Inconnu');
+        const safeText = this.escapeHtml(msg.message || '');
+        const messageId = msg.id || '';
+        const canModerate = this.moderation?.isAdmin;
+
+        const deleteButton = canModerate && messageId ? `
+            <button class="chat-delete-btn" data-message-id="${messageId}" title="Supprimer ce message">🗑️</button>
+        ` : '';
+
+        return `
+            <div class="chat-message" data-message-id="${messageId}" data-user-id="${msg.userId || ''}">
+                <div class="chat-content">
+                    <span class="chat-user">${safeUser}:</span>
+                    <span class="chat-text">${safeText}</span>
+                </div>
+                ${deleteButton}
+            </div>
+        `;
     }
 
     async sendGlobalChat() {
@@ -597,6 +631,7 @@ class LobbyManager {
 
     updateWaitingRoom(room) {
         const isHost = room.host === this.network.getUserId();
+        this.isCurrentRoomHost = isHost;
         const playersGrid = document.getElementById('playersGrid');
         const playersById = (room.players && typeof room.players === 'object') ? room.players : {};
         const settings = (room.settings && typeof room.settings === 'object') ? room.settings : {};
@@ -696,6 +731,16 @@ class LobbyManager {
                 readyBtn.classList.toggle('ready', myPlayer.ready);
             }
         }
+
+        // Toggle host panel visibility
+        const hostPanel = document.getElementById('hostPanel');
+        if (hostPanel) {
+            if (isHost) {
+                hostPanel.classList.remove('hidden');
+            } else {
+                hostPanel.classList.add('hidden');
+            }
+        }
     }
 
     storeExpectedPlayers(room) {
@@ -716,15 +761,15 @@ class LobbyManager {
         const message = input.value.trim();
 
         if (message && this.currentRoomCode && this.moderation) {
-            // Check for admin commands
-            if (message.startsWith('/') && this.moderation.isAdmin) {
+            // Check for moderation commands (host/admin)
+            if (message.startsWith('/') && (this.isCurrentRoomHost || this.moderation.isAdmin)) {
                 const parts = message.slice(1).split(' ');
                 const command = parts[0];
                 const args = parts.slice(1);
 
-                const result = await this.processAdminCommand(command, args);
+                const result = await this.processRoomModerationCommand(command, args);
                 if (result) {
-                    this.showError(result, 'info');
+                    this.showError(result);
                 }
                 input.value = '';
                 return;
@@ -1194,49 +1239,150 @@ class LobbyManager {
         }
     }
 
-    // ==================== ADMIN & MODERATION ====================
+    // ==================== HOST & MODERATION ====================
 
-    setupAdminControls() {
-        // Clear chat button
-        document.getElementById('adminClearChat').addEventListener('click', async () => {
+    setupHostControls() {
+        if (this.hostControlsInitialized) {
+            return;
+        }
+
+        const clearChatBtn = document.getElementById('hostClearChat');
+        const muteBtn = document.getElementById('hostMuteBtn');
+        const kickBtn = document.getElementById('hostKickBtn');
+        const banBtn = document.getElementById('hostBanBtn');
+
+        if (!clearChatBtn || !muteBtn || !kickBtn || !banBtn) {
+            return;
+        }
+
+        clearChatBtn.addEventListener('click', async () => {
+            if (!this.isCurrentRoomHost && !this.moderation.isAdmin) {
+                this.showError('Seul l\'hôte peut effacer le chat de la room.');
+                return;
+            }
+
             if (confirm('Voulez-vous vraiment effacer tout le chat ?')) {
                 await this.moderation.clearChat(this.currentRoomCode);
-                this.showError('Chat effacé', 'info');
+                this.showError('Chat effacé');
             }
         });
 
-        // Mute button
-        document.getElementById('adminMuteBtn').addEventListener('click', async () => {
-            const username = document.getElementById('adminTargetUser').value.trim();
+        muteBtn.addEventListener('click', async () => {
+            if (!this.isCurrentRoomHost && !this.moderation.isAdmin) {
+                this.showError('Seul l\'hôte peut mute des joueurs dans la room.');
+                return;
+            }
+
+            const username = document.getElementById('hostTargetUser').value.trim();
             if (username) {
-                await this.executeAdminAction('mute', username);
+                await this.executeHostAction('mute', username);
             }
         });
 
-        // Kick button
-        document.getElementById('adminKickBtn').addEventListener('click', async () => {
-            const username = document.getElementById('adminTargetUser').value.trim();
+        kickBtn.addEventListener('click', async () => {
+            if (!this.isCurrentRoomHost && !this.moderation.isAdmin) {
+                this.showError('Seul l\'hôte peut kick des joueurs dans la room.');
+                return;
+            }
+
+            const username = document.getElementById('hostTargetUser').value.trim();
             if (username && confirm(`Voulez-vous vraiment kick ${username} ?`)) {
-                await this.executeAdminAction('kick', username);
+                await this.executeHostAction('kick', username);
             }
         });
 
-        // Ban button
-        document.getElementById('adminBanBtn').addEventListener('click', async () => {
-            const username = document.getElementById('adminTargetUser').value.trim();
+        banBtn.addEventListener('click', async () => {
+            if (!this.isCurrentRoomHost && !this.moderation.isAdmin) {
+                this.showError('Seul l\'hôte peut bannir des joueurs dans la room.');
+                return;
+            }
+
+            const username = document.getElementById('hostTargetUser').value.trim();
             if (username && confirm(`Voulez-vous vraiment bannir ${username} ?`)) {
-                await this.executeAdminAction('ban', username);
+                await this.executeHostAction('ban', username);
             }
         });
+
+        this.hostControlsInitialized = true;
     }
 
-    async executeAdminAction(action, username) {
+    initializeAdminFeatures() {
+        const shortcuts = document.getElementById('adminShortcuts');
+        const adminBtn = document.getElementById('openAdminPageBtn');
+
+        if (shortcuts && adminBtn) {
+            shortcuts.classList.remove('hidden');
+            if (!this.adminShortcutInitialized) {
+                adminBtn.addEventListener('click', () => {
+                    window.location.href = 'admin.html';
+                });
+                this.adminShortcutInitialized = true;
+            }
+        }
+
+        if (this.globalChatModerationInitialized) {
+            this.renderGlobalChatMessages();
+            return;
+        }
+
+        const moderationContainer = document.getElementById('globalChatModeration');
+        const clearBtn = document.getElementById('globalClearChat');
+        const chatDiv = document.getElementById('globalChat');
+
+        if (!moderationContainer || !clearBtn || !chatDiv) {
+            return;
+        }
+
+        moderationContainer.classList.remove('hidden');
+
+        clearBtn.addEventListener('click', async () => {
+            if (!this.moderation.isAdmin) {
+                this.showError('Réservé aux admins');
+                return;
+            }
+
+            if (confirm('Effacer tout le chat global ?')) {
+                const result = await this.moderation.clearGlobalChat();
+                this.showError(typeof result === 'string' ? result : 'Chat global effacé');
+            }
+        });
+
+        chatDiv.addEventListener('click', async (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) {
+                return;
+            }
+
+            if (target.classList.contains('chat-delete-btn')) {
+                const messageId = target.dataset.messageId;
+                if (!messageId) {
+                    return;
+                }
+
+                if (!this.moderation.isAdmin) {
+                    this.showError('Réservé aux admins');
+                    return;
+                }
+
+                if (confirm('Supprimer ce message ?')) {
+                    const success = await this.moderation.deleteGlobalMessage(messageId);
+                    if (!success) {
+                        this.showError('Impossible de supprimer le message');
+                    }
+                }
+            }
+        });
+
+        this.globalChatModerationInitialized = true;
+        this.renderGlobalChatMessages();
+    }
+
+    async executeHostAction(action, username, options = {}) {
         if (!this.currentRoom || !this.currentRoom.players) {
             this.showError('Pas de room active');
             return;
         }
 
-        // Find user ID by username
         const players = safeObjectValues(this.currentRoom.players);
         const targetPlayer = players.find(p => p.username.toLowerCase() === username.toLowerCase());
 
@@ -1248,26 +1394,43 @@ class LobbyManager {
         let result;
         switch (action) {
             case 'mute':
-                result = this.moderation.muteUser(targetPlayer.id, targetPlayer.username, 60000);
-                this.showError(result, 'info');
+                result = this.moderation.muteUser(
+                    targetPlayer.id,
+                    targetPlayer.username,
+                    options.duration || 60000
+                );
+                this.showError(result);
+                break;
+
+            case 'unmute':
+                this.moderation.unmuteUser(targetPlayer.id);
+                this.showError(`${targetPlayer.username} peut à nouveau parler`);
                 break;
 
             case 'kick':
                 result = await this.moderation.kickUser(targetPlayer.id, targetPlayer.username, this.currentRoomCode);
-                this.showError(result, 'info');
+                this.showError(result);
                 break;
 
             case 'ban':
                 result = await this.moderation.banUser(targetPlayer.id, targetPlayer.username, this.currentRoomCode);
-                this.showError(result, 'info');
+                this.showError(result);
                 break;
         }
 
-        document.getElementById('adminTargetUser').value = '';
+        const targetInput = document.getElementById('hostTargetUser');
+        if (targetInput) {
+            targetInput.value = '';
+        }
     }
 
-    async processAdminCommand(command, args) {
-        const commandResult = this.moderation.processAdminCommand(command, args, this.currentRoomCode);
+    async processRoomModerationCommand(command, args) {
+        const commandResult = this.moderation.processModerationCommand(
+            command,
+            args,
+            this.currentRoomCode,
+            { isHost: this.isCurrentRoomHost }
+        );
 
         if (typeof commandResult === 'string') {
             return commandResult;
@@ -1280,10 +1443,13 @@ class LobbyManager {
                     return 'Chat effacé';
 
                 case 'mute':
+                    await this.executeHostAction('mute', commandResult.username, { duration: commandResult.duration });
+                    return null;
+
                 case 'unmute':
                 case 'kick':
                 case 'ban':
-                    await this.executeAdminAction(commandResult.action, commandResult.username);
+                    await this.executeHostAction(commandResult.action, commandResult.username);
                     return null;
 
                 default:

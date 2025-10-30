@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bomberman Multiplayer - Admin Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/customization.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body class="admin-page">
+    <div class="stars-bg"></div>
+
+    <div class="admin-dashboard">
+        <header class="admin-header">
+            <div>
+                <h1>👑 Admin Dashboard</h1>
+                <p id="adminSubtitle">Vérification du statut administrateur...</p>
+            </div>
+            <div class="admin-header-actions">
+                <button class="btn btn-small btn-secondary" id="backToLobbyBtn">← Retour au lobby</button>
+                <button class="btn btn-small btn-danger" id="adminSignOutBtn">Déconnexion</button>
+            </div>
+        </header>
+
+        <div class="admin-grid">
+            <section class="admin-card">
+                <h2>💬 Modération du chat global</h2>
+                <div class="chat-moderation" id="adminChatControls">
+                    <button class="btn btn-small btn-danger" id="adminGlobalClearBtn">🧹 Effacer le chat</button>
+                    <span class="status-label" id="globalChatStatus"></span>
+                </div>
+                <div class="chat-messages" id="adminGlobalChat"></div>
+            </section>
+
+            <section class="admin-card">
+                <h2>🛠️ Gestion des utilisateurs</h2>
+                <div class="admin-form">
+                    <label for="adminTargetUserId">UID utilisateur</label>
+                    <input type="text" id="adminTargetUserId" placeholder="UID Firebase...">
+                    <div class="admin-form-actions">
+                        <button class="btn btn-small btn-secondary" id="grantAdminBtn">Accorder admin</button>
+                        <button class="btn btn-small btn-warning" id="revokeAdminBtn">Retirer admin</button>
+                    </div>
+                    <p class="form-hint">Les changements sont appliqués sur Firestore et Realtime Database.</p>
+                </div>
+            </section>
+        </div>
+
+        <div class="admin-actions">
+            <button class="btn btn-small" id="refreshDashboardBtn">Actualiser</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-analytics.js";
+        import { getDatabase } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-database.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD7cxkTRl1OgFRVzPPf5Us0LRZSZM07u08",
+            authDomain: "bomb-16743.firebaseapp.com",
+            databaseURL: "https://bomb-16743-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "bomb-16743",
+            storageBucket: "bomb-16743.firebasestorage.app",
+            messagingSenderId: "866325131307",
+            appId: "1:866325131307:web:d4884ecf4b464fee4f3a6e",
+            measurementId: "G-B1SR1M0TEK"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const database = getDatabase(app);
+        const firestore = getFirestore(app);
+
+        window.firebaseApp = app;
+        window.database = database;
+        window.firestore = firestore;
+    </script>
+    <script type="module" src="js/adminPage.js"></script>
+</body>
+</html>
