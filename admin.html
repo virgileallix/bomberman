@@ -37,14 +37,19 @@
 
             <section class="admin-card">
                 <h2>🛠️ Gestion des utilisateurs</h2>
-                <div class="admin-form">
-                    <label for="adminTargetUserId">UID utilisateur</label>
-                    <input type="text" id="adminTargetUserId" placeholder="UID Firebase...">
-                    <div class="admin-form-actions">
-                        <button class="btn btn-small btn-secondary" id="grantAdminBtn">Accorder admin</button>
-                        <button class="btn btn-small btn-warning" id="revokeAdminBtn">Retirer admin</button>
+                <div class="user-management">
+                    <div class="user-management-controls">
+                        <label for="adminUserSearch">Rechercher un utilisateur</label>
+                        <input type="text" id="adminUserSearch" placeholder="Pseudo ou UID...">
+                        <div class="user-management-actions">
+                            <button class="btn btn-small btn-secondary" id="refreshUserListBtn">Actualiser la liste</button>
+                            <span class="status-label" id="userListStatus"></span>
+                        </div>
+                        <p class="form-hint">La liste affiche jusqu'à 100 utilisateurs. Les changements sont appliqués sur Firestore et Realtime Database.</p>
                     </div>
-                    <p class="form-hint">Les changements sont appliqués sur Firestore et Realtime Database.</p>
+                    <div class="user-list" id="adminUserList">
+                        <div class="empty-state">Chargement des utilisateurs...</div>
+                    </div>
                 </div>
             </section>
         </div>

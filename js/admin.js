@@ -5,7 +5,12 @@
 import {
     doc,
     getDoc,
-    updateDoc
+    updateDoc,
+    collection,
+    getDocs,
+    query,
+    orderBy,
+    limit
 } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
 
 import {
@@ -139,6 +144,70 @@ export class ModerationManager {
         } catch (error) {
             console.error('❌ Erreur lors de la mise à jour du statut admin:', error);
             return false;
+        }
+    }
+
+    /**
+     * Récupérer la liste des utilisateurs (Firestore en priorité, RTDB en fallback)
+     */
+    async fetchUsers(limitCount = 100) {
+        // Try Firestore first
+        try {
+            const usersCol = collection(this.network.firestore, 'users');
+            const usersQuery = query(
+                usersCol,
+                orderBy('username'),
+                limit(Math.max(1, limitCount))
+            );
+            const snapshot = await getDocs(usersQuery);
+
+            const users = snapshot.docs.map(docSnap => {
+                const data = docSnap.data() || {};
+                const username = typeof data.username === 'string' && data.username.trim()
+                    ? data.username.trim()
+                    : 'Utilisateur sans nom';
+
+                return {
+                    id: docSnap.id,
+                    username,
+                    admin: data.admin === 1 || data.admin === true
+                };
+            });
+
+            if (users.length > 0) {
+                return users;
+            }
+        } catch (error) {
+            console.warn('⚠️ Impossible de charger les utilisateurs Firestore:', error);
+        }
+
+        // Fallback to Realtime Database
+        try {
+            const usersRef = ref(this.network.database, 'users');
+            const snapshot = await get(usersRef);
+
+            if (!snapshot.exists()) {
+                return [];
+            }
+
+            const data = snapshot.val() || {};
+            const users = Object.entries(data).map(([id, userData]) => {
+                const username = userData && typeof userData.username === 'string' && userData.username.trim()
+                    ? userData.username.trim()
+                    : 'Utilisateur sans nom';
+
+                return {
+                    id,
+                    username,
+                    admin: userData && (userData.admin === 1 || userData.admin === true)
+                };
+            });
+
+            users.sort((a, b) => a.username.localeCompare(b.username, 'fr', { sensitivity: 'base' }));
+            return users;
+        } catch (error) {
+            console.error('❌ Erreur fallback RTDB lors du chargement des utilisateurs:', error);
+            return [];
         }
     }
 

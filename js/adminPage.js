@@ -10,6 +10,11 @@ class AdminDashboard {
         this.globalMessages = [];
         this.globalChatInitialized = false;
         this.adminManagementInitialized = false;
+        this.userList = [];
+        this.filteredUserList = [];
+        this.currentUserSearchTerm = '';
+        this.loadUserListFn = null;
+        this.userStatusTimeout = null;
         this.init();
     }
 
@@ -182,6 +187,112 @@ class AdminDashboard {
         `;
     }
 
+    renderUserList(users) {
+        const listContainer = document.getElementById('adminUserList');
+        if (!listContainer) {
+            return;
+        }
+
+        if (!Array.isArray(users) || users.length === 0) {
+            const hasUsers = this.userList.length > 0;
+            listContainer.innerHTML = `
+                <div class="empty-state">
+                    ${hasUsers ? 'Aucun utilisateur ne correspond à la recherche.' : 'Aucun utilisateur trouvé.'}
+                </div>
+            `;
+            return;
+        }
+
+        listContainer.innerHTML = users.map(user => this.renderUserRow(user)).join('');
+    }
+
+    renderUserRow(user) {
+        const rawUid = user.id || '';
+        const safeUid = this.escapeHtml(rawUid);
+        const safeName = this.escapeHtml(user.username || 'Utilisateur sans nom');
+        const isAdmin = !!user.admin;
+        const badgeClass = isAdmin ? 'badge badge-admin' : 'badge badge-normal';
+        const badgeLabel = isAdmin ? 'Admin' : 'Joueur';
+        const buttonLabel = isAdmin ? 'Retirer admin' : 'Accorder admin';
+        const buttonClass = isAdmin ? 'btn btn-small btn-warning' : 'btn btn-small btn-secondary';
+        const targetAdmin = isAdmin ? 'remove' : 'grant';
+        const rowClass = isAdmin ? 'user-row is-admin' : 'user-row';
+
+        return `
+            <div class="${rowClass}" data-user-id="${safeUid}">
+                <div class="user-info">
+                    <span class="user-name">${safeName}</span>
+                    <div class="user-meta">
+                        <span class="${badgeClass}">${badgeLabel}</span>
+                        <span class="user-uid">${safeUid}</span>
+                    </div>
+                </div>
+                <div class="user-actions">
+                    <button class="${buttonClass}" data-action="toggleAdmin" data-user-id="${safeUid}" data-target-admin="${targetAdmin}">
+                        ${buttonLabel}
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    filterUsers(term) {
+        if (!Array.isArray(this.userList) || this.userList.length === 0) {
+            return [];
+        }
+
+        const trimmed = (term || '').trim();
+        if (!trimmed) {
+            return [...this.userList];
+        }
+
+        const lowerTerm = trimmed.toLowerCase();
+        return this.userList.filter(user => {
+            const username = (user.username || '').toLowerCase();
+            const uid = (user.id || '').toLowerCase();
+            return username.includes(lowerTerm) || uid.includes(lowerTerm);
+        });
+    }
+
+    generateUserListStatusMessage() {
+        if (!this.userList.length) {
+            return 'Aucun utilisateur';
+        }
+
+        const adminCount = this.userList.reduce((count, user) => count + (user.admin ? 1 : 0), 0);
+        const hasQuery = this.currentUserSearchTerm && this.currentUserSearchTerm.trim();
+        const filteredCount = Array.isArray(this.filteredUserList) ? this.filteredUserList.length : 0;
+
+        if (hasQuery) {
+            return `${filteredCount} résultat(s) sur ${this.userList.length} • ${adminCount} admin(s)`;
+        }
+
+        return `${this.userList.length} utilisateur(s) • ${adminCount} admin(s)`;
+    }
+
+    updateUserListStatus(message, autoClear = false) {
+        const statusLabel = document.getElementById('userListStatus');
+        if (!statusLabel) {
+            return;
+        }
+
+        statusLabel.textContent = message || '';
+
+        if (this.userStatusTimeout) {
+            clearTimeout(this.userStatusTimeout);
+            this.userStatusTimeout = null;
+        }
+
+        if (autoClear && message) {
+            this.userStatusTimeout = setTimeout(() => {
+                if (statusLabel.textContent === message) {
+                    statusLabel.textContent = '';
+                }
+                this.userStatusTimeout = null;
+            }, 3000);
+        }
+    }
+
     formatTimestamp(raw) {
         if (!raw) {
             return '--:--';
@@ -217,35 +328,107 @@ class AdminDashboard {
             return;
         }
 
-        const grantBtn = document.getElementById('grantAdminBtn');
-        const revokeBtn = document.getElementById('revokeAdminBtn');
-        const targetInput = document.getElementById('adminTargetUserId');
+        const listContainer = document.getElementById('adminUserList');
+        const searchInput = document.getElementById('adminUserSearch');
+        const refreshBtn = document.getElementById('refreshUserListBtn');
 
-        if (!grantBtn || !revokeBtn || !targetInput) {
+        if (!listContainer) {
             return;
         }
 
-        const updateStatus = async (shouldGrant) => {
-            const userId = targetInput.value.trim();
-            if (!userId) {
-                alert('Veuillez renseigner un UID utilisateur.');
-                return;
-            }
+        const applyFilter = () => {
+            const term = searchInput ? searchInput.value : '';
+            this.currentUserSearchTerm = term;
+            this.filteredUserList = this.filterUsers(this.currentUserSearchTerm);
+            this.renderUserList(this.filteredUserList);
+            this.updateUserListStatus(this.generateUserListStatusMessage());
+        };
+
+        const loadUsers = async () => {
+            this.updateUserListStatus('Chargement...');
+            listContainer.innerHTML = '<div class="empty-state">Chargement des utilisateurs...</div>';
 
             try {
-                await this.moderation.setAdminStatus(userId, shouldGrant);
-                alert(`Statut admin mis à jour pour ${userId}`);
-                targetInput.value = '';
+                const users = await this.moderation.fetchUsers(100);
+                this.userList = Array.isArray(users) ? [...users] : [];
+                this.userList.sort((a, b) => (a.username || '').localeCompare(b.username || '', 'fr', { sensitivity: 'base' }));
+
+                if (!this.userList.length) {
+                    listContainer.innerHTML = '<div class="empty-state">Aucun utilisateur trouvé.</div>';
+                    this.updateUserListStatus('Aucun utilisateur');
+                    return;
+                }
+
+                applyFilter();
             } catch (error) {
-                console.error('Erreur update admin status:', error);
-                alert('Impossible de mettre à jour le statut admin. Consultez la console.');
+                console.error('Erreur chargement utilisateurs:', error);
+                listContainer.innerHTML = '<div class="empty-state">Erreur lors du chargement des utilisateurs.</div>';
+                this.updateUserListStatus('Erreur de chargement');
             }
         };
 
-        grantBtn.addEventListener('click', () => updateStatus(true));
-        revokeBtn.addEventListener('click', () => updateStatus(false));
+        this.loadUserListFn = loadUsers;
+
+        if (searchInput) {
+            searchInput.addEventListener('input', () => {
+                applyFilter();
+            });
+        }
+
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                this.loadUserListFn();
+            });
+        }
+
+        listContainer.addEventListener('click', async (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) {
+                return;
+            }
+
+            if (target.dataset.action !== 'toggleAdmin') {
+                return;
+            }
+
+            const userId = target.dataset.userId;
+            if (!userId) {
+                return;
+            }
+
+            const shouldGrant = target.dataset.targetAdmin === 'grant';
+            const originalLabel = target.textContent;
+
+            target.disabled = true;
+            target.textContent = '...';
+
+            let success = false;
+            try {
+                success = await this.moderation.setAdminStatus(userId, shouldGrant);
+            } catch (error) {
+                console.error('Erreur update admin status:', error);
+            }
+
+            target.disabled = false;
+            target.textContent = originalLabel;
+
+            if (!success) {
+                this.updateUserListStatus('Impossible de mettre à jour ce compte', true);
+                return;
+            }
+
+            const user = this.userList.find(u => u.id === userId);
+            if (user) {
+                user.admin = shouldGrant;
+            }
+
+            this.filteredUserList = this.filterUsers(this.currentUserSearchTerm);
+            this.renderUserList(this.filteredUserList);
+            this.updateUserListStatus(`Statut admin mis à jour pour ${userId}`, true);
+        });
 
         this.adminManagementInitialized = true;
+        this.loadUserListFn();
     }
 
     refresh() {
@@ -254,6 +437,10 @@ class AdminDashboard {
         if (statusLabel) {
             statusLabel.textContent = 'Vue actualisée';
             setTimeout(() => statusLabel.textContent = '', 2000);
+        }
+
+        if (typeof this.loadUserListFn === 'function') {
+            this.loadUserListFn();
         }
     }
 

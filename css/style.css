@@ -594,6 +594,110 @@ input[type="checkbox"]:disabled:hover {
     color: var(--text-muted);
 }
 
+.user-management {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.user-management-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.user-management-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.user-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 420px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.user-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.user-row.is-admin {
+    border-color: var(--primary);
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.15);
+}
+
+.user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.user-name {
+    font-size: 10px;
+    color: var(--text-primary);
+}
+
+.user-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.user-uid {
+    font-size: 8px;
+    color: var(--text-muted);
+    word-break: break-all;
+}
+
+.user-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.user-list .empty-state {
+    padding: 20px;
+    border: 1px dashed var(--border-color);
+    border-radius: 8px;
+    font-size: 8px;
+    background: rgba(14, 14, 40, 0.6);
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 8px;
+    text-transform: uppercase;
+}
+
+.badge-admin {
+    background: rgba(0, 240, 255, 0.15);
+    border: 1px solid var(--primary);
+    color: var(--primary);
+}
+
+.badge-normal {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+}
+
 .admin-actions {
     display: flex;
     justify-content: flex-end;
