@@ -25,6 +25,35 @@
             <button class="btn-menu" id="menuBtn">☰</button>
         </div>
 
+        <!-- Player Stats HUD -->
+        <div class="player-stats-hud" id="playerStatsHud">
+            <div class="stat-item">
+                <span class="stat-icon">💣</span>
+                <span class="stat-label">Bombes</span>
+                <span class="stat-value" id="bombsCount">1/1</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-icon">📏</span>
+                <span class="stat-label">Portée</span>
+                <span class="stat-value" id="bombRange">2</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-icon">⚡</span>
+                <span class="stat-label">Vitesse</span>
+                <span class="stat-value" id="playerSpeed">2.0</span>
+            </div>
+            <div class="stat-item" id="kickStat" style="display: none;">
+                <span class="stat-icon">👢</span>
+                <span class="stat-label">Kick</span>
+                <span class="stat-value">✓</span>
+            </div>
+            <div class="stat-item" id="invincibleStat" style="display: none;">
+                <span class="stat-icon">🛡️</span>
+                <span class="stat-label">Invincible</span>
+                <span class="stat-value" id="invincibleTime">5s</span>
+            </div>
+        </div>
+
         <!-- Game Canvas -->
         <div class="game-canvas-container">
             <canvas id="gameCanvas"></canvas>

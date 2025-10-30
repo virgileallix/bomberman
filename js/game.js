@@ -667,6 +667,9 @@ class GameManager {
         // Update timer
         this.updateTimer();
 
+        // Update player stats HUD
+        this.updatePlayerStatsHUD();
+
         // Check game end
         this.checkGameEnd();
     }
@@ -812,6 +815,9 @@ class GameManager {
             this.bombs.set(bomb.id, bomb);
             this.grid[bomb.y][bomb.x] = 3; // Mark grid as having bomb
 
+            // Update stats HUD immediately
+            this.updatePlayerStatsHUD();
+
             // Sync with server
             await this.network.placeBomb(this.roomCode, bomb.serialize());
         }
@@ -833,6 +839,11 @@ class GameManager {
         const player = this.players.get(bomb.playerId);
         if (player) {
             player.bombExploded();
+
+            // Update stats HUD if it's the local player
+            if (player.id === this.localPlayerId) {
+                this.updatePlayerStatsHUD();
+            }
         }
 
         // Create explosion effects
@@ -946,6 +957,9 @@ class GameManager {
                         if (type === 'speed') {
                             this.recalculateMoveDelay();
                         }
+
+                        // Update stats HUD immediately
+                        this.updatePlayerStatsHUD();
 
                         // Sync with server
                         this.network.collectPowerUp(this.roomCode, id);
@@ -1160,6 +1174,39 @@ class GameManager {
 
         if (remaining === 0) {
             this.endGame();
+        }
+    }
+
+    updatePlayerStatsHUD() {
+        if (!this.localPlayer) return;
+
+        // Update bombs count (available / max)
+        const bombsAvailable = this.localPlayer.maxBombs - this.localPlayer.currentBombs;
+        document.getElementById('bombsCount').textContent =
+            `${bombsAvailable}/${this.localPlayer.maxBombs}`;
+
+        // Update bomb range
+        document.getElementById('bombRange').textContent = this.localPlayer.bombRange;
+
+        // Update speed
+        document.getElementById('playerSpeed').textContent = this.localPlayer.speed.toFixed(1);
+
+        // Show/hide kick ability
+        const kickStat = document.getElementById('kickStat');
+        if (this.localPlayer.canKickBombs) {
+            kickStat.style.display = 'flex';
+        } else {
+            kickStat.style.display = 'none';
+        }
+
+        // Show/hide invincibility
+        const invincibleStat = document.getElementById('invincibleStat');
+        if (this.localPlayer.invincible) {
+            const remaining = Math.max(0, Math.ceil((this.localPlayer.invincibleUntil - Date.now()) / 1000));
+            document.getElementById('invincibleTime').textContent = `${remaining}s`;
+            invincibleStat.style.display = 'flex';
+        } else {
+            invincibleStat.style.display = 'none';
         }
     }
 
