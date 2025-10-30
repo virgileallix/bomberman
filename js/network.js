@@ -357,13 +357,17 @@ export class NetworkManager {
         const rooms = [];
         snapshot.forEach(childSnapshot => {
             const room = childSnapshot.val();
-            if (room.status === 'waiting') {
+            if (room && room.status === 'waiting') {
+                const players = room.players || {};
+                const settings = room.settings || {};
+                const hostPlayer = room.host && players[room.host];
+
                 rooms.push({
-                    code: room.code,
-                    host: room.players[room.host]?.username || 'Unknown',
-                    playerCount: Object.keys(room.players || {}).length,
-                    maxPlayers: room.settings.maxPlayers,
-                    map: room.settings.map
+                    code: room.code || childSnapshot.key,
+                    host: hostPlayer?.username || 'Unknown',
+                    playerCount: Object.keys(players).length,
+                    maxPlayers: settings.maxPlayers || 10,
+                    map: settings.map || 'medium'
                 });
             }
         });
@@ -749,6 +753,49 @@ export class NetworkManager {
 
         this.listeners[`chat_${roomCode || 'global'}`] = unsubscribe;
         return unsubscribe;
+    }
+
+    // ==================== MODERATION ====================
+
+    /**
+     * Ban user from room
+     */
+    async banUser(roomCode, userId, banData) {
+        const banRef = ref(this.database, `rooms/${roomCode}/bans/${userId}`);
+        await set(banRef, banData);
+    }
+
+    /**
+     * Kick user from room (remove from players)
+     */
+    async kickUser(roomCode, userId) {
+        const playerRef = ref(this.database, `rooms/${roomCode}/players/${userId}`);
+        await remove(playerRef);
+    }
+
+    /**
+     * Clear chat messages
+     */
+    async clearChat(roomCode) {
+        const chatRef = ref(this.database, roomCode ? `rooms/${roomCode}/chat` : 'globalChat');
+        await remove(chatRef);
+    }
+
+    /**
+     * Check if user is banned
+     */
+    async isUserBanned(roomCode, userId) {
+        const banRef = ref(this.database, `rooms/${roomCode}/bans/${userId}`);
+        const snapshot = await get(banRef);
+        return snapshot.exists();
+    }
+
+    /**
+     * Remove a specific chat message
+     */
+    async deleteChatMessage(roomCode, messageId) {
+        const messageRef = ref(this.database, roomCode ? `rooms/${roomCode}/chat/${messageId}` : `globalChat/${messageId}`);
+        await remove(messageRef);
     }
 
     /**

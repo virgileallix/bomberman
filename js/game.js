@@ -274,8 +274,7 @@ class GameManager {
 
             // Validate player count (2-10 players required)
             if (playerEntries.length < 2) {
-                console.error('❌ Cannot start game: minimum 2 players required');
-                alert('Le jeu nécessite au moins 2 joueurs pour commencer !');
+                console.warn('startGame deferred: waiting for more players (need 2+, currently have ' + playerEntries.length + ')');
                 return;
             }
 
@@ -853,6 +852,9 @@ class GameManager {
             }
         }
 
+        // Track killed players to avoid duplicate kill feed messages
+        const killedPlayersInExplosion = new Set();
+
         // Create explosion effects
         explosionData.explosions.forEach(expl => {
             this.explosions.push(new Explosion(expl.x, expl.y));
@@ -870,7 +872,10 @@ class GameManager {
             // Kill players
             this.players.forEach(player => {
                 if (player.isAtPosition(expl.x, expl.y)) {
-                    if (player.kill()) {
+                    // Only process kill if player hasn't been killed in this explosion yet
+                    if (!killedPlayersInExplosion.has(player.id) && player.kill()) {
+                        killedPlayersInExplosion.add(player.id);
+
                         // Award kill to bomb owner
                         let killer = null;
                         const isSuicide = player.id === bomb.playerId;
@@ -1020,7 +1025,13 @@ class GameManager {
                     player.gridX = playerData.gridX;
                     player.gridY = playerData.gridY;
                     player.direction = playerData.direction;
-                    player.alive = playerData.alive;
+
+                    // Only update alive status if player is dying (alive -> dead)
+                    // Never revive a dead player through normal sync (prevents respawn bugs)
+                    if (!playerData.alive && player.alive) {
+                        player.alive = false;
+                    }
+
                     player.kills = playerData.kills;
                     player.deaths = playerData.deaths;
                     player.speed = playerData.speed;

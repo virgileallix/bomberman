@@ -15,7 +15,7 @@
 
     <div class="lobby-container">
         <header class="game-header">
-            <div class="game-version">v0.06</div>
+            <div class="game-version">v0.07</div>
             <h1 class="game-title">💣 BOMBERMAN</h1>
             <p class="game-subtitle">Multiplayer Arena</p>
         </header>
@@ -673,6 +673,35 @@
                 <div class="chat-input">
                     <input type="text" id="roomChatInput" placeholder="Chat with players..." maxlength="100">
                     <button class="btn btn-icon" id="sendRoomChatBtn">📨</button>
+                </div>
+            </div>
+
+            <!-- Admin Panel -->
+            <div class="admin-panel hidden" id="adminPanel">
+                <h3>👑 Panneau Admin</h3>
+                <div class="admin-controls">
+                    <div class="admin-section">
+                        <h4>Commandes rapides</h4>
+                        <button class="btn btn-small btn-danger" id="adminClearChat">🧹 Clear Chat</button>
+                    </div>
+                    <div class="admin-section">
+                        <h4>Modération</h4>
+                        <div class="admin-input-group">
+                            <input type="text" id="adminTargetUser" placeholder="Nom du joueur" class="admin-input">
+                            <button class="btn btn-small btn-warning" id="adminMuteBtn">🔇 Mute (60s)</button>
+                            <button class="btn btn-small btn-warning" id="adminKickBtn">👢 Kick</button>
+                            <button class="btn btn-small btn-danger" id="adminBanBtn">🚫 Ban</button>
+                        </div>
+                    </div>
+                    <div class="admin-section">
+                        <h4>Commandes chat</h4>
+                        <p class="admin-hint">Tapez dans le chat:</p>
+                        <code>/mute &lt;user&gt; [durée]</code>
+                        <code>/unmute &lt;user&gt;</code>
+                        <code>/kick &lt;user&gt;</code>
+                        <code>/ban &lt;user&gt;</code>
+                        <code>/clear</code>
+                    </div>
                 </div>
             </div>
 

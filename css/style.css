@@ -752,6 +752,79 @@ input[type="checkbox"]:disabled:hover {
     color: var(--text-muted);
 }
 
+/* Admin Panel */
+.admin-panel {
+    background: var(--bg-card);
+    border: 2px solid #ffd700;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.admin-panel h3 {
+    color: #ffd700;
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
+.admin-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.admin-section {
+    background: var(--bg-hover);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.admin-section h4 {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+}
+
+.admin-input-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.admin-input {
+    flex: 1;
+    min-width: 150px;
+    padding: 8px 12px;
+    background: var(--bg-card);
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-family: 'Press Start 2P', cursive;
+    font-size: 8px;
+}
+
+.btn-small {
+    padding: 8px 12px;
+    font-size: 8px;
+}
+
+.admin-hint {
+    font-size: 8px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.admin-section code {
+    display: block;
+    background: var(--bg-card);
+    padding: 6px 10px;
+    margin: 4px 0;
+    border-radius: 4px;
+    font-size: 8px;
+    color: var(--primary);
+}
+
 /* Kill Feed */
 .kill-feed {
     position: fixed;

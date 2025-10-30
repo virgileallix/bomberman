@@ -2,6 +2,7 @@ import { NetworkManager } from './network.js';
 import { AuthManager } from './auth.js';
 import { SkinManager, CHARACTER_SKINS, BOMB_SKINS } from './skins.js';
 import { SkinEditor, PremadeSkins } from './skinEditor.js';
+import { ModerationManager } from './admin.js';
 
 const safeObjectValues = (value) => (value && typeof value === 'object') ? Object.values(value) : [];
 
@@ -12,6 +13,7 @@ class LobbyManager {
     constructor() {
         this.auth = null;
         this.network = null;
+        this.moderation = null;
         this.skinManager = new SkinManager();
         this.characterEditor = null;
         this.bombEditor = null;
@@ -155,6 +157,15 @@ class LobbyManager {
             this.network = new NetworkManager(window.database, window.firestore);
             await this.network.initialize();
             console.log('Network initialized:', this.network.getUserId());
+
+            // Initialize moderation system
+            this.moderation = new ModerationManager(this.network, this.network.getUserId());
+
+            // Show admin panel if user is admin
+            if (this.moderation.isAdmin) {
+                document.getElementById('adminPanel').classList.remove('hidden');
+                this.setupAdminControls();
+            }
         }
 
         // Setup UI
@@ -702,7 +713,30 @@ class LobbyManager {
         const input = document.getElementById('roomChatInput');
         const message = input.value.trim();
 
-        if (message && this.currentRoomCode) {
+        if (message && this.currentRoomCode && this.moderation) {
+            // Check for admin commands
+            if (message.startsWith('/') && this.moderation.isAdmin) {
+                const parts = message.slice(1).split(' ');
+                const command = parts[0];
+                const args = parts.slice(1);
+
+                const result = await this.processAdminCommand(command, args);
+                if (result) {
+                    this.showError(result, 'info');
+                }
+                input.value = '';
+                return;
+            }
+
+            // Validate message
+            const validation = this.moderation.validateMessage(this.network.getUserId(), message);
+
+            if (!validation.valid) {
+                this.showError(validation.reason);
+                input.value = '';
+                return;
+            }
+
             try {
                 await this.network.sendRoomChat(this.currentRoomCode, message);
                 input.value = '';
@@ -1156,6 +1190,106 @@ class LobbyManager {
         if (bombSkin && this.bombEditor) {
             this.bombEditor.loadImageData(bombSkin);
         }
+    }
+
+    // ==================== ADMIN & MODERATION ====================
+
+    setupAdminControls() {
+        // Clear chat button
+        document.getElementById('adminClearChat').addEventListener('click', async () => {
+            if (confirm('Voulez-vous vraiment effacer tout le chat ?')) {
+                await this.moderation.clearChat(this.currentRoomCode);
+                this.showError('Chat effacé', 'info');
+            }
+        });
+
+        // Mute button
+        document.getElementById('adminMuteBtn').addEventListener('click', async () => {
+            const username = document.getElementById('adminTargetUser').value.trim();
+            if (username) {
+                await this.executeAdminAction('mute', username);
+            }
+        });
+
+        // Kick button
+        document.getElementById('adminKickBtn').addEventListener('click', async () => {
+            const username = document.getElementById('adminTargetUser').value.trim();
+            if (username && confirm(`Voulez-vous vraiment kick ${username} ?`)) {
+                await this.executeAdminAction('kick', username);
+            }
+        });
+
+        // Ban button
+        document.getElementById('adminBanBtn').addEventListener('click', async () => {
+            const username = document.getElementById('adminTargetUser').value.trim();
+            if (username && confirm(`Voulez-vous vraiment bannir ${username} ?`)) {
+                await this.executeAdminAction('ban', username);
+            }
+        });
+    }
+
+    async executeAdminAction(action, username) {
+        if (!this.currentRoom || !this.currentRoom.players) {
+            this.showError('Pas de room active');
+            return;
+        }
+
+        // Find user ID by username
+        const players = safeObjectValues(this.currentRoom.players);
+        const targetPlayer = players.find(p => p.username.toLowerCase() === username.toLowerCase());
+
+        if (!targetPlayer) {
+            this.showError(`Joueur "${username}" introuvable`);
+            return;
+        }
+
+        let result;
+        switch (action) {
+            case 'mute':
+                result = this.moderation.muteUser(targetPlayer.id, targetPlayer.username, 60000);
+                this.showError(result, 'info');
+                break;
+
+            case 'kick':
+                result = await this.moderation.kickUser(targetPlayer.id, targetPlayer.username, this.currentRoomCode);
+                this.showError(result, 'info');
+                break;
+
+            case 'ban':
+                result = await this.moderation.banUser(targetPlayer.id, targetPlayer.username, this.currentRoomCode);
+                this.showError(result, 'info');
+                break;
+        }
+
+        document.getElementById('adminTargetUser').value = '';
+    }
+
+    async processAdminCommand(command, args) {
+        const commandResult = this.moderation.processAdminCommand(command, args, this.currentRoomCode);
+
+        if (typeof commandResult === 'string') {
+            return commandResult;
+        }
+
+        if (commandResult && commandResult.action) {
+            switch (commandResult.action) {
+                case 'clear':
+                    await this.moderation.clearChat(this.currentRoomCode);
+                    return 'Chat effacé';
+
+                case 'mute':
+                case 'unmute':
+                case 'kick':
+                case 'ban':
+                    await this.executeAdminAction(commandResult.action, commandResult.username);
+                    return null;
+
+                default:
+                    return 'Commande inconnue';
+            }
+        }
+
+        return null;
     }
 }
 
