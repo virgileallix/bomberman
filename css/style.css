@@ -178,6 +178,21 @@ input[type="checkbox"] {
     accent-color: var(--primary);
 }
 
+/* Disabled inputs styling */
+select:disabled,
+input[type="checkbox"]:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: var(--bg-primary);
+    border-color: #444;
+}
+
+select:disabled:hover,
+input[type="checkbox"]:disabled:hover {
+    border-color: #444;
+    box-shadow: none;
+}
+
 /* ==================== LOBBY PAGE ==================== */
 .lobby-container {
     max-width: 1400px;

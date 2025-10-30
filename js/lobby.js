@@ -614,18 +614,44 @@ class LobbyManager {
             }
         }).join('');
 
-        // Update settings UI
+        // Update settings UI - Always visible, but disabled for non-hosts
         const settingsDiv = document.getElementById('roomSettings');
+        settingsDiv.classList.remove('hidden');
 
+        // Update title based on host status
+        const settingsTitle = document.getElementById('settingsTitle');
         if (isHost) {
-            settingsDiv.classList.remove('hidden');
-            document.getElementById('maxPlayersSelect').value = settings.maxPlayers || 10;
-            document.getElementById('mapSelect').value = settings.map || 'medium';
-            document.getElementById('durationSelect').value = settings.duration || 300;
-            document.getElementById('powerupDensitySelect').value = settings.powerupDensity || 'medium';
-            document.getElementById('powerupsToggle').checked = settings.powerups !== false;
+            settingsTitle.textContent = '⚙️ Paramètres de la partie';
         } else {
-            settingsDiv.classList.add('hidden');
+            settingsTitle.textContent = '👁️ Paramètres de la partie (lecture seule)';
+        }
+
+        // Update values for everyone
+        const maxPlayersSelect = document.getElementById('maxPlayersSelect');
+        const mapSelect = document.getElementById('mapSelect');
+        const durationSelect = document.getElementById('durationSelect');
+        const powerupDensitySelect = document.getElementById('powerupDensitySelect');
+        const powerupsToggle = document.getElementById('powerupsToggle');
+
+        maxPlayersSelect.value = settings.maxPlayers || 10;
+        mapSelect.value = settings.map || 'medium';
+        durationSelect.value = settings.duration || 300;
+        powerupDensitySelect.value = settings.powerupDensity || 'medium';
+        powerupsToggle.checked = settings.powerups !== false;
+
+        // Disable inputs for non-hosts
+        if (isHost) {
+            maxPlayersSelect.disabled = false;
+            mapSelect.disabled = false;
+            durationSelect.disabled = false;
+            powerupDensitySelect.disabled = false;
+            powerupsToggle.disabled = false;
+        } else {
+            maxPlayersSelect.disabled = true;
+            mapSelect.disabled = true;
+            durationSelect.disabled = true;
+            powerupDensitySelect.disabled = true;
+            powerupsToggle.disabled = true;
         }
 
         // Update start button

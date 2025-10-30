@@ -54,6 +54,11 @@ class GameManager {
         // Heartbeat
         this.heartbeatInterval = null;
 
+        // Game end tracking (prevent premature game end checks)
+        this.gameEndCheckTimer = null;
+        this.lastAliveCount = 0;
+        this.stableAliveCountDuration = 0;
+
         this.init();
     }
 
@@ -1144,23 +1149,42 @@ class GameManager {
         const alivePlayers = Array.from(this.players.values()).filter(p => p.alive);
         const totalPlayers = this.players.size;
 
-        console.log(`🏁 Checking game end: ${alivePlayers.length}/${totalPlayers} players alive`);
-
-        // Game end conditions:
-        // - Game requires 2-10 players
-        // - Game ends when only 1 or 0 players remain alive
-        // - Last player standing wins
-
-        if (totalPlayers < 2) {
-            console.error('❌ Invalid game state: less than 2 players');
-            this.endGame();
-            return;
+        // Don't check totalPlayers < 2 during gameplay - players are syncing
+        // Only check alive players to determine winner
+        if (totalPlayers === 0) {
+            return; // No players loaded yet
         }
 
-        // End game when only one winner remains
-        if (alivePlayers.length <= 1) {
-            console.log('🏆 Game ending: winner determined (1 or 0 players left)');
-            setTimeout(() => this.endGame(), 1000);
+        // Use debouncing to prevent false positives from network lag
+        // Only end game if alive count is stable for at least 1.5 seconds
+        if (alivePlayers.length !== this.lastAliveCount) {
+            // Alive count changed, reset the timer
+            this.lastAliveCount = alivePlayers.length;
+            this.stableAliveCountDuration = 0;
+
+            // Clear any pending game end
+            if (this.gameEndCheckTimer) {
+                clearTimeout(this.gameEndCheckTimer);
+                this.gameEndCheckTimer = null;
+            }
+
+            console.log(`🏁 Alive count changed: ${alivePlayers.length}/${totalPlayers} players alive`);
+        } else {
+            // Alive count is stable, increment duration
+            this.stableAliveCountDuration += 1/60; // Approximate frame time
+        }
+
+        // Game end conditions:
+        // - Game requires 2-10 players to have started
+        // - Game ends when only 1 or 0 players remain alive
+        // - Must be stable for 1.5 seconds to prevent false positives
+        if (alivePlayers.length <= 1 && totalPlayers >= 2 && this.stableAliveCountDuration >= 1.5) {
+            if (!this.gameEndCheckTimer) {
+                console.log('🏆 Game ending: winner determined (1 or 0 players left, stable for 1.5s)');
+                this.gameEndCheckTimer = setTimeout(() => {
+                    this.endGame();
+                }, 1000);
+            }
         }
     }
 
@@ -1168,6 +1192,14 @@ class GameManager {
         if (!this.gameRunning) return;
 
         this.gameRunning = false;
+
+        // Clear game end check timer
+        if (this.gameEndCheckTimer) {
+            clearTimeout(this.gameEndCheckTimer);
+            this.gameEndCheckTimer = null;
+        }
+        this.lastAliveCount = 0;
+        this.stableAliveCountDuration = 0;
 
         // Determine winner
         const alivePlayers = Array.from(this.players.values()).filter(p => p.alive);
