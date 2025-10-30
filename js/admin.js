@@ -2,6 +2,18 @@
  * Admin & Moderation System
  */
 
+import {
+    doc,
+    getDoc,
+    updateDoc
+} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+
+import {
+    ref,
+    get,
+    update
+} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-database.js";
+
 export class ModerationManager {
     constructor(network, userId) {
         this.network = network;
@@ -41,9 +53,10 @@ export class ModerationManager {
     async checkAdminFromDatabase() {
         try {
             // Try Firestore first (main database)
-            const userDoc = await this.network.firestore.collection('users').doc(this.userId).get();
+            const userRef = doc(this.network.firestore, 'users', this.userId);
+            const userDoc = await getDoc(userRef);
 
-            if (userDoc.exists) {
+            if (userDoc.exists()) {
                 const userData = userDoc.data();
                 this.isAdmin = userData.admin === 1;
                 this.adminCheckComplete = true;
@@ -55,7 +68,8 @@ export class ModerationManager {
             }
 
             // Fallback to Realtime Database
-            const snapshot = await this.network.database.ref(`users/${this.userId}`).once('value');
+            const userDbRef = ref(this.network.database, `users/${this.userId}`);
+            const snapshot = await get(userDbRef);
 
             if (snapshot.exists()) {
                 const userData = snapshot.val();
@@ -103,17 +117,19 @@ export class ModerationManager {
 
         try {
             // Update in Firestore
-            const userDoc = await this.network.firestore.collection('users').doc(userId).get();
-            if (userDoc.exists) {
-                await this.network.firestore.collection('users').doc(userId).update({
+            const userRef = doc(this.network.firestore, 'users', userId);
+            const userDoc = await getDoc(userRef);
+            if (userDoc.exists()) {
+                await updateDoc(userRef, {
                     admin: adminValue
                 });
             }
 
             // Update in Realtime Database
-            const snapshot = await this.network.database.ref(`users/${userId}`).once('value');
+            const userDbRef = ref(this.network.database, `users/${userId}`);
+            const snapshot = await get(userDbRef);
             if (snapshot.exists()) {
-                await this.network.database.ref(`users/${userId}`).update({
+                await update(userDbRef, {
                     admin: adminValue
                 });
             }

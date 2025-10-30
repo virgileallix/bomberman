@@ -306,13 +306,34 @@
     </div>
 
     <!-- Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
+        import { getAuth } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
+        import { getDatabase } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-database.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
 
-    <!-- Firebase Config -->
-    <script src="js/firebase-config.js"></script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyD7cxkTRl1OgFRVzPPf5Us0LRZSZM07u08",
+            authDomain: "bomb-16743.firebaseapp.com",
+            databaseURL: "https://bomb-16743-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "bomb-16743",
+            storageBucket: "bomb-16743.firebasestorage.app",
+            messagingSenderId: "866325131307",
+            appId: "1:866325131307:web:d4884ecf4b464fee4f3a6e",
+            measurementId: "G-B1SR1M0TEK"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const database = getDatabase(app);
+        const firestore = getFirestore(app);
+
+        // Make available globally
+        window.firebaseApp = app;
+        window.auth = auth;
+        window.database = database;
+        window.firestore = firestore;
+    </script>
 
     <!-- Migration Script -->
     <script type="module" src="js/migration.js"></script>

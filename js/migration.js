@@ -2,6 +2,19 @@
  * Migration Script - Add admin field to all user accounts
  */
 
+import {
+    collection,
+    getDocs,
+    doc,
+    updateDoc
+} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+
+import {
+    ref,
+    get,
+    update
+} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-database.js";
+
 class MigrationManager {
     constructor() {
         this.database = null;
@@ -144,7 +157,8 @@ class MigrationManager {
         this.log('📊 Lecture des utilisateurs Firestore...', 'info');
 
         try {
-            const usersSnapshot = await this.firestore.collection('users').get();
+            const usersCollection = collection(this.firestore, 'users');
+            const usersSnapshot = await getDocs(usersCollection);
 
             if (usersSnapshot.empty) {
                 this.log('ℹ️ Aucun utilisateur trouvé dans Firestore', 'info');
@@ -155,8 +169,8 @@ class MigrationManager {
             this.log(`📋 ${usersSnapshot.size} utilisateur(s) trouvé(s) dans Firestore`, 'info');
 
             // Process each user
-            for (const doc of usersSnapshot.docs) {
-                await this.migrateFirestoreUser(doc);
+            for (const userDoc of usersSnapshot.docs) {
+                await this.migrateFirestoreUser(userDoc);
                 this.updateProgress();
             }
 
@@ -170,9 +184,9 @@ class MigrationManager {
     /**
      * Migrate single Firestore user
      */
-    async migrateFirestoreUser(doc) {
-        const userId = doc.id;
-        const userData = doc.data();
+    async migrateFirestoreUser(userDoc) {
+        const userId = userDoc.id;
+        const userData = userDoc.data();
 
         try {
             // Check if admin field already exists
@@ -193,7 +207,8 @@ class MigrationManager {
             const adminValue = isAdmin ? 1 : 0;
 
             // Update user document
-            await this.firestore.collection('users').doc(userId).update({
+            const userRef = doc(this.firestore, 'users', userId);
+            await updateDoc(userRef, {
                 admin: adminValue
             });
 
@@ -220,8 +235,8 @@ class MigrationManager {
         this.log('📊 Lecture des utilisateurs Realtime Database...', 'info');
 
         try {
-            const usersRef = firebase.database().ref('users');
-            const snapshot = await usersRef.once('value');
+            const usersRef = ref(this.database, 'users');
+            const snapshot = await get(usersRef);
 
             if (!snapshot.exists()) {
                 this.log('ℹ️ Aucun utilisateur trouvé dans Realtime Database', 'info');
@@ -270,8 +285,8 @@ class MigrationManager {
             const adminValue = isAdmin ? 1 : 0;
 
             // Update user in Realtime Database
-            const userRef = firebase.database().ref(`users/${userId}`);
-            await userRef.update({
+            const userRef = ref(this.database, `users/${userId}`);
+            await update(userRef, {
                 admin: adminValue
             });
 
