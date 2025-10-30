@@ -161,11 +161,13 @@ class LobbyManager {
             // Initialize moderation system
             this.moderation = new ModerationManager(this.network, this.network.getUserId());
 
-            // Show admin panel if user is admin
-            if (this.moderation.isAdmin) {
-                document.getElementById('adminPanel').classList.remove('hidden');
-                this.setupAdminControls();
-            }
+            // Wait for admin check to complete, then show admin panel if user is admin
+            this.moderation.waitForAdminCheck().then(isAdmin => {
+                if (isAdmin) {
+                    document.getElementById('adminPanel').classList.remove('hidden');
+                    this.setupAdminControls();
+                }
+            });
         }
 
         // Setup UI

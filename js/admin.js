@@ -7,13 +7,7 @@ export class ModerationManager {
         this.network = network;
         this.userId = userId;
         this.isAdmin = false;
-
-        // Admin list (IDs Firebase des admins)
-        // TODO: Remplacer par ton propre ID Firebase
-        this.adminIds = [
-            // Ajoute ton ID Firebase ici
-            // Tu peux le trouver dans la console Firebase
-        ];
+        this.adminCheckComplete = false;
 
         // Rate limiting
         this.messageTimestamps = new Map(); // userId -> [timestamps]
@@ -37,22 +31,98 @@ export class ModerationManager {
             'dick', 'pussy', 'bastard', 'whore', 'fag'
         ];
 
-        this.checkAdmin();
+        // Check admin status from database
+        this.checkAdminFromDatabase();
     }
 
-    checkAdmin() {
-        this.isAdmin = this.adminIds.includes(this.userId);
-        if (this.isAdmin) {
-            console.log('👑 Admin mode activé');
+    /**
+     * Vérifier le statut admin depuis la base de données
+     */
+    async checkAdminFromDatabase() {
+        try {
+            // Try Firestore first (main database)
+            const userDoc = await this.network.firestore.collection('users').doc(this.userId).get();
+
+            if (userDoc.exists) {
+                const userData = userDoc.data();
+                this.isAdmin = userData.admin === 1;
+                this.adminCheckComplete = true;
+
+                if (this.isAdmin) {
+                    console.log('👑 Admin mode activé (depuis Firestore)');
+                }
+                return;
+            }
+
+            // Fallback to Realtime Database
+            const snapshot = await this.network.database.ref(`users/${this.userId}`).once('value');
+
+            if (snapshot.exists()) {
+                const userData = snapshot.val();
+                this.isAdmin = userData.admin === 1;
+                this.adminCheckComplete = true;
+
+                if (this.isAdmin) {
+                    console.log('👑 Admin mode activé (depuis Realtime Database)');
+                }
+                return;
+            }
+
+            // User not found in database
+            this.isAdmin = false;
+            this.adminCheckComplete = true;
+            console.log('ℹ️ Utilisateur non trouvé dans la base de données');
+        } catch (error) {
+            console.error('❌ Erreur lors de la vérification admin:', error);
+            this.isAdmin = false;
+            this.adminCheckComplete = true;
         }
     }
 
     /**
-     * Ajouter un admin
+     * Attendre que la vérification admin soit terminée
      */
-    addAdmin(userId) {
-        if (!this.adminIds.includes(userId)) {
-            this.adminIds.push(userId);
+    async waitForAdminCheck() {
+        let attempts = 0;
+        while (!this.adminCheckComplete && attempts < 50) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+        return this.isAdmin;
+    }
+
+    /**
+     * Définir manuellement le statut admin (pour la migration)
+     */
+    async setAdminStatus(userId, isAdmin) {
+        if (!this.isAdmin) {
+            throw new Error('Seuls les admins peuvent modifier les statuts admin');
+        }
+
+        const adminValue = isAdmin ? 1 : 0;
+
+        try {
+            // Update in Firestore
+            const userDoc = await this.network.firestore.collection('users').doc(userId).get();
+            if (userDoc.exists) {
+                await this.network.firestore.collection('users').doc(userId).update({
+                    admin: adminValue
+                });
+            }
+
+            // Update in Realtime Database
+            const snapshot = await this.network.database.ref(`users/${userId}`).once('value');
+            if (snapshot.exists()) {
+                await this.network.database.ref(`users/${userId}`).update({
+                    admin: adminValue
+                });
+            }
+
+            console.log(`✅ Statut admin de ${userId} mis à jour: ${isAdmin ? 'admin' : 'utilisateur normal'}`);
+            return true;
+        } catch (error) {
+            console.error('❌ Erreur lors de la mise à jour du statut admin:', error);
+            return false;
         }
     }
 

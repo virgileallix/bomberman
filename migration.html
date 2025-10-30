@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Migration Base de Données - Bomberman</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .migration-container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 30px;
+            background: rgba(26, 26, 46, 0.95);
+            border: 2px solid #4a4a6a;
+            border-radius: 10px;
+        }
+
+        .migration-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .migration-header h1 {
+            color: #00f0ff;
+            margin-bottom: 10px;
+        }
+
+        .migration-warning {
+            background: rgba(255, 100, 100, 0.2);
+            border: 2px solid #ff6464;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .migration-warning h3 {
+            color: #ff6464;
+            margin-bottom: 10px;
+        }
+
+        .migration-info {
+            background: rgba(0, 240, 255, 0.1);
+            border: 2px solid #00f0ff;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .migration-info h3 {
+            color: #00f0ff;
+            margin-bottom: 10px;
+        }
+
+        .migration-info ul {
+            margin-left: 20px;
+        }
+
+        .admin-ids-section {
+            background: rgba(255, 215, 0, 0.1);
+            border: 2px solid #ffd700;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .admin-ids-section h3 {
+            color: #ffd700;
+            margin-bottom: 10px;
+        }
+
+        #adminIdsInput {
+            width: 100%;
+            min-height: 100px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #4a4a6a;
+            border-radius: 5px;
+            color: #fff;
+            font-family: monospace;
+            margin-bottom: 10px;
+        }
+
+        .migration-actions {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .migration-actions button {
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-migrate {
+            background: linear-gradient(135deg, #00f0ff, #0080ff);
+            color: #fff;
+        }
+
+        .btn-migrate:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.5);
+        }
+
+        .btn-migrate:disabled {
+            background: #4a4a6a;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-back {
+            background: #4a4a6a;
+            color: #fff;
+        }
+
+        .btn-back:hover {
+            background: #5a5a7a;
+        }
+
+        .migration-progress {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #4a4a6a;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .migration-progress.active {
+            display: block;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #4a4a6a;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00f0ff, #0080ff);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .progress-log {
+            max-height: 300px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #4a4a6a;
+            border-radius: 5px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .log-entry {
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-info {
+            color: #00f0ff;
+        }
+
+        .log-success {
+            color: #00ff88;
+        }
+
+        .log-warning {
+            color: #ffaa00;
+        }
+
+        .log-error {
+            color: #ff4444;
+        }
+
+        .migration-results {
+            background: rgba(0, 255, 136, 0.1);
+            border: 2px solid #00ff88;
+            border-radius: 5px;
+            padding: 20px;
+            display: none;
+        }
+
+        .migration-results.active {
+            display: block;
+        }
+
+        .migration-results h3 {
+            color: #00ff88;
+            margin-bottom: 15px;
+        }
+
+        .results-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .stat-card {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #4a4a6a;
+            border-radius: 5px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #00f0ff;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+    <div class="migration-container">
+        <div class="migration-header">
+            <h1>🔧 Migration Base de Données</h1>
+            <p>Ajouter le champ "admin" à tous les comptes utilisateurs</p>
+        </div>
+
+        <div class="migration-warning">
+            <h3>⚠️ Attention</h3>
+            <p>Cette opération va modifier tous les comptes utilisateurs dans la base de données Firebase.</p>
+            <p>Assurez-vous d'avoir une sauvegarde avant de continuer.</p>
+        </div>
+
+        <div class="migration-info">
+            <h3>📋 Cette migration va :</h3>
+            <ul>
+                <li>Lire tous les utilisateurs existants dans Firebase</li>
+                <li>Ajouter un champ <code>admin: 0</code> à chaque utilisateur normal</li>
+                <li>Ajouter un champ <code>admin: 1</code> aux utilisateurs dans la liste des admins</li>
+                <li>Ne pas modifier les données existantes (username, stats, etc.)</li>
+            </ul>
+        </div>
+
+        <div class="admin-ids-section">
+            <h3>👑 Liste des IDs Administrateurs</h3>
+            <p>Entrez les IDs Firebase des utilisateurs qui doivent être admins (un par ligne) :</p>
+            <textarea id="adminIdsInput" placeholder="Collez les Firebase User IDs ici, un par ligne..."></textarea>
+            <p style="font-size: 12px; color: #aaa;">
+                💡 Pour trouver votre ID : ouvrez la console dans le lobby et tapez <code>window.lobbyManager.network.getUserId()</code>
+            </p>
+        </div>
+
+        <div class="migration-actions">
+            <button class="btn-migrate" id="startMigrationBtn">🚀 Lancer la Migration</button>
+            <button class="btn-back" onclick="window.location.href='index.html'">← Retour au Lobby</button>
+        </div>
+
+        <div class="migration-progress" id="migrationProgress">
+            <h3>Migration en cours...</h3>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill">0%</div>
+            </div>
+            <div class="progress-log" id="progressLog"></div>
+        </div>
+
+        <div class="migration-results" id="migrationResults">
+            <h3>✅ Migration Terminée !</h3>
+            <div class="results-stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalUsers">0</div>
+                    <div class="stat-label">Utilisateurs traités</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="normalUsers">0</div>
+                    <div class="stat-label">Utilisateurs normaux</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="adminUsers">0</div>
+                    <div class="stat-label">Administrateurs</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="errorCount">0</div>
+                    <div class="stat-label">Erreurs</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <!-- Firebase Config -->
+    <script src="js/firebase-config.js"></script>
+
+    <!-- Migration Script -->
+    <script type="module" src="js/migration.js"></script>
+</body>
+</html>
