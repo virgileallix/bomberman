@@ -53,6 +53,180 @@ export class ModerationManager {
     }
 
     /**
+     * Récupère les détails complets d'un utilisateur
+     */
+    async getUserProfile(userId) {
+        if (!userId) {
+            throw new Error('Utilisateur invalide');
+        }
+
+        let firestoreData = null;
+        let realtimeData = null;
+
+        try {
+            const userRef = doc(this.network.firestore, 'users', userId);
+            const snapshot = await getDoc(userRef);
+            if (snapshot.exists()) {
+                firestoreData = snapshot.data();
+            }
+        } catch (error) {
+            console.warn('⚠️ Impossible de récupérer l’utilisateur Firestore:', error);
+        }
+
+        try {
+            const userDbRef = ref(this.network.database, `users/${userId}`);
+            const snapshot = await get(userDbRef);
+            if (snapshot.exists()) {
+                realtimeData = snapshot.val();
+            }
+        } catch (error) {
+            console.warn('⚠️ Impossible de récupérer l’utilisateur Realtime DB:', error);
+        }
+
+        const combined = {
+            ...(realtimeData || {}),
+            ...(firestoreData || {})
+        };
+
+        const createdAt = firestoreData && firestoreData.createdAt;
+        let createdAtIso = null;
+        if (createdAt) {
+            if (typeof createdAt.toDate === 'function') {
+                createdAtIso = createdAt.toDate().toISOString();
+            } else if (typeof createdAt.seconds === 'number') {
+                createdAtIso = new Date(createdAt.seconds * 1000).toISOString();
+            } else if (typeof createdAt === 'number') {
+                createdAtIso = new Date(createdAt).toISOString();
+            }
+        } else if (realtimeData && typeof realtimeData.createdAt === 'number') {
+            createdAtIso = new Date(realtimeData.createdAt).toISOString();
+        }
+
+        const profile = {
+            id: userId,
+            username: this.normalizeUsername(combined.username),
+            admin: combined.admin === 1 || combined.admin === true,
+            elo: this.normalizeNumberField(combined.elo),
+            rank: this.normalizeRank(combined.rank),
+            gamesPlayed: this.normalizeNumberField(combined.gamesPlayed),
+            wins: this.normalizeNumberField(combined.wins),
+            kills: this.normalizeNumberField(combined.kills),
+            deaths: this.normalizeNumberField(combined.deaths),
+            createdAtIso,
+            sources: {
+                firestore: Boolean(firestoreData),
+                realtime: Boolean(realtimeData)
+            }
+        };
+
+        return profile;
+    }
+
+    normalizeUsername(username) {
+        if (typeof username === 'string') {
+            const trimmed = username.trim();
+            if (trimmed.length > 0) {
+                return trimmed;
+            }
+        }
+        return 'Utilisateur sans nom';
+    }
+
+    normalizeRank(rank) {
+        if (typeof rank === 'string') {
+            const trimmed = rank.trim();
+            if (trimmed.length > 0) {
+                return trimmed;
+            }
+        }
+        return 'Bronze';
+    }
+
+    normalizeNumberField(value) {
+        if (typeof value === 'number' && !Number.isNaN(value)) {
+            return value;
+        }
+        if (typeof value === 'string') {
+            const parsed = Number(value);
+            if (!Number.isNaN(parsed)) {
+                return parsed;
+            }
+        }
+        return 0;
+    }
+
+    sanitizeUserUpdates(updates) {
+        const allowedFields = {
+            username: 'string',
+            rank: 'string',
+            elo: 'number',
+            gamesPlayed: 'number',
+            wins: 'number',
+            kills: 'number',
+            deaths: 'number'
+        };
+
+        const sanitized = {};
+
+        for (const [key, value] of Object.entries(updates || {})) {
+            if (!(key in allowedFields)) {
+                continue;
+            }
+
+            const type = allowedFields[key];
+            if (type === 'string') {
+                const strValue = typeof value === 'string' ? value.trim() : String(value || '').trim();
+                if (strValue.length === 0) {
+                    continue;
+                }
+                sanitized[key] = strValue.slice(0, 50);
+            } else if (type === 'number') {
+                const numberValue = Number(value);
+                if (Number.isNaN(numberValue)) {
+                    continue;
+                }
+                sanitized[key] = Math.max(0, Math.round(numberValue));
+            }
+        }
+
+        return sanitized;
+    }
+
+    /**
+     * Mettre à jour le profil d'un utilisateur
+     */
+    async updateUserProfile(userId, updates) {
+        if (!this.isAdmin) {
+            throw new Error('Seuls les admins peuvent modifier les profils');
+        }
+
+        const sanitized = this.sanitizeUserUpdates(updates);
+
+        if (Object.keys(sanitized).length === 0) {
+            throw new Error('Aucune donnée valide à mettre à jour');
+        }
+
+        try {
+            const userRef = doc(this.network.firestore, 'users', userId);
+            const userDoc = await getDoc(userRef);
+            if (userDoc.exists()) {
+                await updateDoc(userRef, sanitized);
+            }
+
+            const userDbRef = ref(this.network.database, `users/${userId}`);
+            const snapshot = await get(userDbRef);
+            if (snapshot.exists()) {
+                await update(userDbRef, sanitized);
+            }
+
+            return sanitized;
+        } catch (error) {
+            console.error('❌ Erreur lors de la mise à jour du profil:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Vérifier le statut admin depuis la base de données
      */
     async checkAdminFromDatabase() {
@@ -170,7 +344,9 @@ export class ModerationManager {
                 return {
                     id: docSnap.id,
                     username,
-                    admin: data.admin === 1 || data.admin === true
+                    admin: data.admin === 1 || data.admin === true,
+                    elo: typeof data.elo === 'number' ? data.elo : null,
+                    rank: typeof data.rank === 'string' ? data.rank : null
                 };
             });
 
@@ -199,7 +375,9 @@ export class ModerationManager {
                 return {
                     id,
                     username,
-                    admin: userData && (userData.admin === 1 || userData.admin === true)
+                    admin: userData && (userData.admin === 1 || userData.admin === true),
+                    elo: userData && typeof userData.elo === 'number' ? userData.elo : null,
+                    rank: userData && typeof userData.rank === 'string' ? userData.rank : null
                 };
             });
 

@@ -47,8 +47,65 @@
                         </div>
                         <p class="form-hint">La liste affiche jusqu'à 100 utilisateurs. Les changements sont appliqués sur Firestore et Realtime Database.</p>
                     </div>
-                    <div class="user-list" id="adminUserList">
-                        <div class="empty-state">Chargement des utilisateurs...</div>
+                    <div class="user-management-grid">
+                        <div class="user-list" id="adminUserList">
+                            <div class="empty-state">Chargement des utilisateurs...</div>
+                        </div>
+                        <div class="user-details" id="adminUserDetails">
+                            <div class="user-details-placeholder" id="userDetailsPlaceholder">Sélectionnez un utilisateur dans la liste.</div>
+                            <div class="user-details-content is-hidden" id="userDetailsContent">
+                                <div class="user-details-header">
+                                    <div>
+                                        <h3 class="user-details-title" id="userDetailsTitle">Utilisateur</h3>
+                                        <p class="user-details-subtitle">
+                                            <span class="user-details-id" id="userDetailsId"></span>
+                                            <span class="user-details-sources" id="userDetailsSources"></span>
+                                        </p>
+                                    </div>
+                                    <div class="user-details-badges">
+                                        <span class="badge badge-normal" id="userDetailsAdminBadge">Joueur</span>
+                                        <span class="user-details-created" id="userDetailsCreatedAt"></span>
+                                    </div>
+                                </div>
+                                <form class="user-details-form" id="userDetailsForm" autocomplete="off">
+                                    <div class="user-details-grid">
+                                        <div class="user-field">
+                                            <label for="userDetailsUsername">Nom d'utilisateur</label>
+                                            <input type="text" id="userDetailsUsername" maxlength="50" placeholder="Pseudo...">
+                                        </div>
+                                        <div class="user-field">
+                                            <label for="userDetailsRank">Rang</label>
+                                            <input type="text" id="userDetailsRank" maxlength="30" placeholder="Bronze, Silver...">
+                                        </div>
+                                        <div class="user-field">
+                                            <label for="userDetailsElo">ELO / MMR</label>
+                                            <input type="number" id="userDetailsElo" min="0" step="1">
+                                        </div>
+                                        <div class="user-field">
+                                            <label for="userDetailsGamesPlayed">Parties jouées</label>
+                                            <input type="number" id="userDetailsGamesPlayed" min="0" step="1">
+                                        </div>
+                                        <div class="user-field">
+                                            <label for="userDetailsWins">Victoires</label>
+                                            <input type="number" id="userDetailsWins" min="0" step="1">
+                                        </div>
+                                        <div class="user-field">
+                                            <label for="userDetailsKills">Éliminations</label>
+                                            <input type="number" id="userDetailsKills" min="0" step="1">
+                                        </div>
+                                        <div class="user-field">
+                                            <label for="userDetailsDeaths">Morts</label>
+                                            <input type="number" id="userDetailsDeaths" min="0" step="1">
+                                        </div>
+                                    </div>
+                                    <div class="user-details-actions">
+                                        <button type="button" class="btn btn-small btn-primary" id="saveUserDetailsBtn">Enregistrer</button>
+                                        <button type="button" class="btn btn-small btn-secondary" id="resetUserDetailsBtn">Réinitialiser</button>
+                                    </div>
+                                    <p class="form-hint">Modifiez les statistiques puis enregistrez pour synchroniser les données.</p>
+                                </form>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>

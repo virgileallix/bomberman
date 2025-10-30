@@ -613,6 +613,13 @@ input[type="checkbox"]:disabled:hover {
     flex-wrap: wrap;
 }
 
+.user-management-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+    align-items: stretch;
+}
+
 .user-list {
     display: flex;
     flex-direction: column;
@@ -631,11 +638,19 @@ input[type="checkbox"]:disabled:hover {
     background: var(--bg-hover);
     border: 1px solid var(--border-color);
     border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .user-row.is-admin {
     border-color: var(--primary);
     box-shadow: 0 0 12px rgba(0, 240, 255, 0.15);
+}
+
+.user-row.is-selected {
+    border-color: var(--secondary);
+    box-shadow: 0 0 14px rgba(255, 0, 255, 0.2);
+    transform: translateY(-2px);
 }
 
 .user-info {
@@ -653,6 +668,12 @@ input[type="checkbox"]:disabled:hover {
     display: flex;
     flex-direction: column;
     gap: 4px;
+}
+
+.user-rank,
+.user-elo {
+    font-size: 8px;
+    color: var(--text-secondary);
 }
 
 .user-uid {
@@ -673,6 +694,120 @@ input[type="checkbox"]:disabled:hover {
     border-radius: 8px;
     font-size: 8px;
     background: rgba(14, 14, 40, 0.6);
+}
+
+.user-details {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.user-details-placeholder {
+    font-size: 9px;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 40px 20px;
+    border: 1px dashed var(--border-color);
+    border-radius: 10px;
+    background: rgba(10, 10, 26, 0.6);
+}
+
+.user-details-content {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.user-details-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.user-details-title {
+    font-size: 12px;
+    margin-bottom: 6px;
+    color: var(--text-primary);
+}
+
+.user-details-subtitle {
+    font-size: 8px;
+    color: var(--text-muted);
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.user-details-id {
+    word-break: break-all;
+}
+
+.user-details-badges {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-end;
+}
+
+.user-details-created {
+    font-size: 8px;
+    color: var(--text-secondary);
+}
+
+.user-details-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.user-details-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+}
+
+.user-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.user-field label {
+    font-size: 8px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.user-field input {
+    padding: 8px 10px;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: 'Press Start 2P', cursive;
+    font-size: 9px;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.user-field input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+    outline: none;
+}
+
+.user-details-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.is-hidden {
+    display: none !important;
 }
 
 .badge {
@@ -706,6 +841,10 @@ input[type="checkbox"]:disabled:hover {
 
 @media (max-width: 1024px) {
     .admin-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .user-management-grid {
         grid-template-columns: 1fr;
     }
 }
