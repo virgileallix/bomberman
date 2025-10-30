@@ -1,10 +1,12 @@
 /**
  * Bomb Class - Represents a bomb in the game
  */
+let bombCounter = 0;
 const generateSafeId = (prefix) => {
     const timePart = Date.now().toString(36);
     const randomPart = Math.random().toString(36).slice(2, 8);
-    return `${prefix}_${timePart}_${randomPart}`;
+    const counterPart = (bombCounter++).toString(36);
+    return `${prefix}_${timePart}_${counterPart}_${randomPart}`;
 };
 
 export class Bomb {

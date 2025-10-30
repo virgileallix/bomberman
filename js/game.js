@@ -404,13 +404,22 @@ class GameManager {
         }
     }
 
+    /**
+     * Seeded random number generator for deterministic map generation
+     */
+    seededRandom(seed) {
+        const x = Math.sin(seed) * 10000;
+        return x - Math.floor(x);
+    }
+
     generateGrid(mapType) {
         // Set grid dimensions based on map type
         const mapSizes = {
             'small': { width: 13, height: 11 },
             'medium': { width: 15, height: 13 },
             'large': { width: 19, height: 15 },
-            'xlarge': { width: 23, height: 17 }
+            'xlarge': { width: 23, height: 17 },
+            'huge': { width: 27, height: 21 }
         };
 
         const size = mapSizes[mapType] || mapSizes['medium'];
@@ -438,6 +447,15 @@ class GameManager {
             }
         }
 
+        // Use seeded random for deterministic crate placement
+        // Seed is based on room code to ensure all players get the same map
+        let seed = 0;
+        if (this.roomCode) {
+            for (let i = 0; i < this.roomCode.length; i++) {
+                seed += this.roomCode.charCodeAt(i);
+            }
+        }
+
         // Add destructible crates
         const spawnSafeZones = this.getSpawnPoints();
         const crateChance = 0.7; // 70% chance to spawn a crate
@@ -455,7 +473,9 @@ class GameManager {
                     }
                 }
 
-                if (!inSafeZone && Math.random() < crateChance) {
+                // Use seeded random instead of Math.random()
+                seed++;
+                if (!inSafeZone && this.seededRandom(seed) < crateChance) {
                     this.grid[y][x] = 2; // Destructible
                 }
             }
