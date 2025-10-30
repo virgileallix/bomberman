@@ -261,6 +261,8 @@ class LobbyManager {
         document.getElementById('durationSelect').addEventListener('change', () => this.updateSettings());
         document.getElementById('powerupDensitySelect').addEventListener('change', () => this.updateSettings());
         document.getElementById('powerupsToggle').addEventListener('change', () => this.updateSettings());
+        document.getElementById('mapThemeSelect').addEventListener('change', () => this.updateSettings());
+        document.getElementById('dynamicObstaclesToggle').addEventListener('change', () => this.updateSettings());
     }
 
     setupAutoSave() {
@@ -523,7 +525,9 @@ class LobbyManager {
                 map: document.getElementById('mapSelect').value,
                 duration: parseInt(document.getElementById('durationSelect').value),
                 powerupDensity: document.getElementById('powerupDensitySelect').value,
-                powerups: document.getElementById('powerupsToggle').checked
+                powerups: document.getElementById('powerupsToggle').checked,
+                theme: document.getElementById('mapThemeSelect').value,
+                dynamicObstacles: document.getElementById('dynamicObstaclesToggle').checked
             };
 
             try {
@@ -632,12 +636,16 @@ class LobbyManager {
         const durationSelect = document.getElementById('durationSelect');
         const powerupDensitySelect = document.getElementById('powerupDensitySelect');
         const powerupsToggle = document.getElementById('powerupsToggle');
+        const mapThemeSelect = document.getElementById('mapThemeSelect');
+        const dynamicObstaclesToggle = document.getElementById('dynamicObstaclesToggle');
 
         maxPlayersSelect.value = settings.maxPlayers || 10;
         mapSelect.value = settings.map || 'medium';
         durationSelect.value = settings.duration || 300;
         powerupDensitySelect.value = settings.powerupDensity || 'medium';
         powerupsToggle.checked = settings.powerups !== false;
+        mapThemeSelect.value = settings.theme || 'classic';
+        dynamicObstaclesToggle.checked = settings.dynamicObstacles !== false;
 
         // Disable inputs for non-hosts
         if (isHost) {
@@ -646,12 +654,16 @@ class LobbyManager {
             durationSelect.disabled = false;
             powerupDensitySelect.disabled = false;
             powerupsToggle.disabled = false;
+            mapThemeSelect.disabled = false;
+            dynamicObstaclesToggle.disabled = false;
         } else {
             maxPlayersSelect.disabled = true;
             mapSelect.disabled = true;
             durationSelect.disabled = true;
             powerupDensitySelect.disabled = true;
             powerupsToggle.disabled = true;
+            mapThemeSelect.disabled = true;
+            dynamicObstaclesToggle.disabled = true;
         }
 
         // Update start button

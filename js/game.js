@@ -2,6 +2,7 @@ import { NetworkManager } from './network.js';
 import { Renderer } from './renderer.js';
 import { Player } from './player.js';
 import { Bomb, Explosion, PowerUp } from './bomb.js';
+import { Teleporter, MovingWall } from './obstacles.js';
 
 /**
  * Game Manager - Main game logic and state management
@@ -212,6 +213,12 @@ class GameManager {
             const isHost = room.host === this.localPlayerId;
             this.roomHostId = room.host;
             const settings = (room.settings && typeof room.settings === 'object') ? room.settings : {};
+
+            // Apply theme
+            if (settings.theme && this.renderer) {
+                this.renderer.setTheme(settings.theme);
+            }
+
             const roomPlayers = (room.players && typeof room.players === 'object') ? room.players : null;
             const gameStatePlayers = (room.gameState && room.gameState.players && typeof room.gameState.players === 'object')
                 ? room.gameState.players
@@ -866,9 +873,18 @@ class GameManager {
                     if (player.kill()) {
                         // Award kill to bomb owner
                         let killer = null;
-                        if (player.id !== bomb.playerId) {
+                        const isSuicide = player.id === bomb.playerId;
+
+                        if (!isSuicide) {
                             killer = this.players.get(bomb.playerId);
-                            if (killer) killer.kills++;
+                            if (killer) {
+                                killer.kills++;
+                                // Add kill feed message
+                                this.addKillFeedMessage(killer.username, player.username, false);
+                            }
+                        } else {
+                            // Suicide
+                            this.addKillFeedMessage(null, player.username, true);
                         }
 
                         // Sync death to network
@@ -1207,6 +1223,38 @@ class GameManager {
             invincibleStat.style.display = 'flex';
         } else {
             invincibleStat.style.display = 'none';
+        }
+    }
+
+    addKillFeedMessage(killerName, victimName, isSuicide = false) {
+        const killFeed = document.getElementById('killFeed');
+        const message = document.createElement('div');
+        message.className = `kill-message ${isSuicide ? 'suicide' : 'kill'}`;
+
+        if (isSuicide) {
+            message.innerHTML = `
+                <span class="kill-icon">💀</span>
+                <span><strong>${victimName}</strong> s'est fait exploser</span>
+            `;
+        } else {
+            message.innerHTML = `
+                <span class="kill-icon">🔥</span>
+                <span><strong>${killerName}</strong> a éliminé <strong>${victimName}</strong></span>
+            `;
+        }
+
+        killFeed.appendChild(message);
+
+        // Remove after 5 seconds
+        setTimeout(() => {
+            if (message.parentNode === killFeed) {
+                killFeed.removeChild(message);
+            }
+        }, 5000);
+
+        // Keep only last 5 messages
+        while (killFeed.children.length > 5) {
+            killFeed.removeChild(killFeed.firstChild);
         }
     }
 

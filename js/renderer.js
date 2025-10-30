@@ -16,25 +16,86 @@ export class Renderer {
         // Pixel art rendering
         this.ctx.imageSmoothingEnabled = false;
 
-        // Colors
-        this.colors = {
-            floor: '#1a1a2e',
-            floorAlt: '#16162a',
-            wall: '#4a4a6a',
-            wallShade: '#3a3a5a',
-            destructible: '#8b4513',
-            destructibleShade: '#654321',
-            bomb: '#2a2a4a',
-            explosion: '#ff6600',
-            explosionCore: '#ffff00'
+        // Theme system
+        this.currentTheme = 'classic';
+        this.themes = {
+            classic: {
+                floor: '#1a1a2e',
+                floorAlt: '#16162a',
+                wall: '#4a4a6a',
+                wallShade: '#3a3a5a',
+                destructible: '#8b4513',
+                destructibleShade: '#654321',
+                bomb: '#2a2a4a',
+                explosion: '#ff6600',
+                explosionCore: '#ffff00',
+                background: '#0a0a1a'
+            },
+            desert: {
+                floor: '#f4a460',
+                floorAlt: '#daa520',
+                wall: '#8b7355',
+                wallShade: '#6b5d4f',
+                destructible: '#cd853f',
+                destructibleShade: '#a0522d',
+                bomb: '#8b4513',
+                explosion: '#ff8c00',
+                explosionCore: '#ffd700',
+                background: '#8b6914'
+            },
+            ice: {
+                floor: '#e0f2f7',
+                floorAlt: '#b3e5fc',
+                wall: '#81d4fa',
+                wallShade: '#4fc3f7',
+                destructible: '#90caf9',
+                destructibleShade: '#64b5f6',
+                bomb: '#4dd0e1',
+                explosion: '#00bcd4',
+                explosionCore: '#ffffff',
+                background: '#0277bd'
+            },
+            lava: {
+                floor: '#1a0000',
+                floorAlt: '#2a0000',
+                wall: '#8b0000',
+                wallShade: '#6b0000',
+                destructible: '#ff4500',
+                destructibleShade: '#ff6347',
+                bomb: '#4a0000',
+                explosion: '#ff0000',
+                explosionCore: '#ffff00',
+                background: '#0a0000'
+            },
+            space: {
+                floor: '#1a0033',
+                floorAlt: '#2a0044',
+                wall: '#4a0099',
+                wallShade: '#3a0077',
+                destructible: '#7b2cbf',
+                destructibleShade: '#5a189a',
+                bomb: '#240046',
+                explosion: '#c77dff',
+                explosionCore: '#e0aaff',
+                background: '#10002b'
+            }
         };
+
+        this.colors = this.themes[this.currentTheme];
+    }
+
+    setTheme(theme) {
+        if (this.themes[theme]) {
+            this.currentTheme = theme;
+            this.colors = this.themes[theme];
+        }
     }
 
     /**
      * Clear canvas
      */
     clear() {
-        this.ctx.fillStyle = '#0a0a1a';
+        this.ctx.fillStyle = this.colors.background;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     }
 

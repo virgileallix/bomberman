@@ -15,7 +15,7 @@
 
     <div class="lobby-container">
         <header class="game-header">
-            <div class="game-version">v0.05</div>
+            <div class="game-version">v0.06</div>
             <h1 class="game-title">💣 BOMBERMAN</h1>
             <p class="game-subtitle">Multiplayer Arena</p>
         </header>
@@ -650,6 +650,20 @@
                     <label>
                         Power-ups activés
                         <input type="checkbox" id="powerupsToggle" checked>
+                    </label>
+                    <label>
+                        Thème de la map
+                        <select id="mapThemeSelect">
+                            <option value="classic" selected>Classique</option>
+                            <option value="desert">Désert</option>
+                            <option value="ice">Glace</option>
+                            <option value="lava">Lave</option>
+                            <option value="space">Espace</option>
+                        </select>
+                    </label>
+                    <label>
+                        Obstacles dynamiques
+                        <input type="checkbox" id="dynamicObstaclesToggle" checked>
                     </label>
                 </div>
             </div>
